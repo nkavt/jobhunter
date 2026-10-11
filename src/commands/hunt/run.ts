@@ -8,7 +8,12 @@ import {
 } from '../../config/index.js';
 import { filterJob } from '../../filter/index.js';
 import { minScoreFor, scoreJobs } from '../../fit/index.js';
-import { loadCredentials, loadToken, type GoogleClient } from '../../google/index.js';
+import {
+  loadCredentials,
+  loadToken,
+  spreadsheetUrl,
+  type GoogleClient,
+} from '../../google/index.js';
 import type { Job } from '../../jobs/index.js';
 import { getAdapterName, type LLMAdapter, type Usage } from '../../llm/index.js';
 import type { FeedMapping } from '../../mapping/index.js';
@@ -267,6 +272,9 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   if (tracker && !options.dryRun && tracked.length > 0) await tracker.addApplications(tracked);
 
   report(ui, summary, tracked, options);
+  if (profile.sheet && !options.dryRun) {
+    ui.info(`Your sheet: ${spreadsheetUrl(profile.sheet.spreadsheetId)}`);
+  }
   return summary;
 }
 

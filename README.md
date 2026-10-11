@@ -38,6 +38,7 @@ Best matches:
 - [Commands](#commands)
   - [`jobhunter init`](#jobhunter-init)
   - [`jobhunter hunt`](#jobhunter-hunt)
+  - [`jobhunter sheet`](#jobhunter-sheet)
   - [Coming soon](#coming-soon)
 - [Your tracking sheet](#your-tracking-sheet)
 - [Common tasks](#common-tasks)
@@ -74,7 +75,7 @@ Then run `jobhunter --help` to check it's installed.
    ```sh
    jobhunter hunt
    ```
-   New jobs appear in your sheet. Open the **To apply** tab to see the best matches.
+   New jobs appear in your sheet, and the run ends with its link. Open the **To apply** tab to see the best matches. You can get the link again any time with `jobhunter sheet --open`.
 4. **Run `jobhunter hunt` again whenever you like**, for example once a day. Jobs already in your sheet are skipped, so you only ever see new ones.
 
 ## Setting up Google access
@@ -190,7 +191,7 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
 4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement.
 5. **Write to your sheet.** Jobs scoring at or above your cut-off (50 by default) go to **To apply**; the rest go to **Skipped**, with the note explaining why.
-6. **Print a summary:** how many jobs were found, known, ignored and scored, your 10 best matches with their notes, and how many AI tokens the run used.
+6. **Print a summary:** how many jobs were found, known, ignored and scored, your 10 best matches with their notes, and how many AI tokens the run used. The last line is the link to your sheet.
 
 **Options**
 
@@ -211,6 +212,15 @@ jobhunter hunt --dry-run          # look before writing anything
 jobhunter hunt --since 7          # only jobs from the last week
 jobhunter hunt --force            # check the boards again right now
 jobhunter hunt --min-score 70     # stricter: only strong matches go to To apply
+```
+
+### `jobhunter sheet`
+
+Prints the link to your tracking sheet. Add `-o` or `--open` to open it in your browser.
+
+```sh
+jobhunter sheet          # print the link
+jobhunter sheet --open   # open it in the browser
 ```
 
 ### Coming soon
@@ -255,6 +265,8 @@ A few hidden columns (Key, Source, Found) and a hidden `_meta` tab are how Jobhu
 **Sign in again, or switch Google accounts.** Run `jobhunter init` → **Google Sheets connection and tracking sheet** → **Sign in again**.
 
 **Use a different OAuth client file.** Same menu → **Use a different credentials file**.
+
+**Find your sheet.** Run `jobhunter sheet --open`.
 
 **Start with a fresh sheet.** Run `jobhunter init` → **Google Sheets connection and tracking sheet** → **Keep it** for the connection → **Create a new one** for the sheet. The old sheet stays in your Drive until you delete it. Because the new sheet is empty, the next `hunt` treats every listed job as new and scores it again. Add `--force` if the boards were checked in the last 6 hours.
 
