@@ -5,6 +5,7 @@ Rules:
 - Keep every fact exactly as written: names, contact details, links, job titles, companies, dates, numbers, technologies.
 - Do not summarise, rephrase, translate, add, or remove content.
 - Fix only layout artefacts: broken lines, hyphenation, multi-column order, repeated page headers/footers.
+- If the CV is given as plain text extracted from a Word document, headings and lists were lost: rebuild them from context.
 
 Structure:
 

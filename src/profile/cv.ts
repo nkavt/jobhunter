@@ -5,7 +5,7 @@ import { extname, resolve } from 'node:path';
 import mammoth from 'mammoth';
 import type { LLMAdapter, Usage } from '../llm/index.js';
 import { emptyUsage } from '../llm/index.js';
-import cvToMarkdownPrompt from '../prompts/cv-to-markdown.md';
+import { renderSystemPrompt, renderUserPrompt } from '../prompts/index.js';
 
 export const MAX_CV_BYTES = 10 * 1024 * 1024;
 export const SUPPORTED_CV_EXTENSIONS = ['.pdf', '.docx', '.md', '.markdown', '.txt'] as const;
@@ -83,8 +83,6 @@ function kindOf(path: string): LoadedCv['kind'] {
   }
 }
 
-export const CV_TO_MARKDOWN_SYSTEM = cvToMarkdownPrompt.trim();
-
 /**
  * Convert the CV to Markdown. PDFs go to the model as documents, DOCX is extracted to text
  * first; both are then structured by the model. Markdown and plain text are used as-is.
@@ -94,20 +92,20 @@ export async function convertCv(cv: LoadedCv, llm: LLMAdapter): Promise<Converte
     return { markdown: normalise(cv.data.toString('utf8')), usage: emptyUsage() };
   }
 
-  const request =
-    cv.kind === 'pdf'
+  // PDFs are attached as a document; Word files are extracted to text and sent inline.
+  const { text, usage } = await llm.generateText({
+    system: renderSystemPrompt('cv-to-markdown'),
+    maxTokens: 8192,
+    ...(cv.kind === 'pdf'
       ? {
-          prompt: 'Convert this CV to Markdown.',
+          prompt: renderUserPrompt('cv-to-markdown', { cv: '' }),
           files: [{ mimeType: 'application/pdf', data: cv.data, name: 'cv.pdf' }],
         }
       : {
-          prompt: `Convert this CV to Markdown. It was extracted from a Word document, so headings and lists were lost.\n\n<cv>\n${await docxText(cv.data)}\n</cv>`,
-        };
-
-  const { text, usage } = await llm.generateText({
-    system: CV_TO_MARKDOWN_SYSTEM,
-    maxTokens: 8192,
-    ...request,
+          prompt: renderUserPrompt('cv-to-markdown', {
+            cv: `\n<cv>\n${await docxText(cv.data)}\n</cv>`,
+          }),
+        }),
   });
 
   const markdown = normalise(stripCodeFence(text));

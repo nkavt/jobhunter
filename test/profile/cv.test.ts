@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
   convertCv,
-  CV_TO_MARKDOWN_SYSTEM,
   CvError,
   loadCv,
   MAX_CV_BYTES,
@@ -12,6 +11,7 @@ import {
   summariseCv,
   type LoadedCv,
 } from '../../src/profile/cv.js';
+import { renderSystemPrompt } from '../../src/prompts/index.js';
 import { FakeLLM } from '../helpers/fake-llm.js';
 import { useTempHome } from '../helpers/temp-home.js';
 
@@ -94,14 +94,6 @@ describe('loadCv', () => {
   });
 });
 
-describe('CV prompt', () => {
-  it('loads from src/prompts/cv-to-markdown.md as plain text', () => {
-    expect(CV_TO_MARKDOWN_SYSTEM).toMatch(/^You convert CVs/);
-    expect(CV_TO_MARKDOWN_SYSTEM).toContain('Do not summarise, rephrase, translate');
-    expect(CV_TO_MARKDOWN_SYSTEM).toMatch(/no code fences\.$/);
-  });
-});
-
 describe('convertCv', () => {
   it('uses Markdown and text files as they are, without the AI', async () => {
     const llm = new FakeLLM();
@@ -116,7 +108,8 @@ describe('convertCv', () => {
 
     expect(result.markdown).toBe(SAMPLE_MD);
     expect(llm.calls[0]?.request).toMatchObject({
-      system: CV_TO_MARKDOWN_SYSTEM,
+      system: renderSystemPrompt('cv-to-markdown'),
+      prompt: 'Convert this CV to Markdown.',
       maxTokens: 8192,
       files: [{ mimeType: 'application/pdf' }],
     });
@@ -126,7 +119,9 @@ describe('convertCv', () => {
     const llm = new FakeLLM({ text: SAMPLE_MD });
     await convertCv(cvOf('docx', 'ok'), llm);
     const request = llm.calls[0]?.request as { prompt: string; files?: unknown };
-    expect(request.prompt).toContain('<cv>\nAlex Example\nEngineer at Acme\n</cv>');
+    expect(request.prompt).toBe(
+      'Convert this CV to Markdown.\n\n<cv>\nAlex Example\nEngineer at Acme\n</cv>',
+    );
     expect(request.files).toBeUndefined();
   });
 
