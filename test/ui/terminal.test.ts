@@ -17,7 +17,7 @@ vi.mock('yocto-spinner', () => ({
   },
 }));
 
-const { createTerminalUi, label } = await import('../../src/ui/terminal.js');
+const { createTerminalUi, editorCommand, label } = await import('../../src/ui/terminal.js');
 const prompts = await import('@inquirer/prompts');
 const { CancelledError } = await import('../../src/ui/types.js');
 
@@ -49,6 +49,12 @@ describe('terminal UI', () => {
     expect(config?.transformer?.('sk-ant', { isFinal: false })).toBe('******');
     expect(config?.transformer?.('sk-ant', { isFinal: true })).toContain('******');
     expect(config?.transformer?.('sk-ant', { isFinal: true })).not.toContain('sk-ant');
+  });
+
+  it('opens $VISUAL, then $EDITOR, then a platform default', () => {
+    expect(editorCommand({ VISUAL: 'code --wait', EDITOR: 'nano' })).toBe('code --wait');
+    expect(editorCommand({ EDITOR: 'nano' })).toBe('nano');
+    expect(editorCommand({})).toBe(process.platform === 'win32' ? 'notepad' : 'vi');
   });
 
   it('runs tasks and rethrows their errors', async () => {

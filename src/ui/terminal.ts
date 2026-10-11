@@ -1,4 +1,5 @@
 import { confirm, input, select } from '@inquirer/prompts';
+import { spawn } from 'node:child_process';
 import { styleText } from 'node:util';
 import yoctoSpinner from 'yocto-spinner';
 import { CancelledError, type Ui } from './types.js';
@@ -35,6 +36,15 @@ export function createTerminalUi(): Ui {
         }),
       ),
     confirm: (options) => prompt(() => confirm({ ...options, message: label(options.message) })),
+    input: ({ message, default: fallback }) =>
+      prompt(() =>
+        input({
+          message: label(message),
+          ...(fallback !== undefined ? { default: fallback } : {}),
+        }),
+      ),
+
+    editFile: (path) => openInEditor(path),
 
     async task(text, run, done) {
       const spinner = yoctoSpinner({ text }).start();
@@ -61,6 +71,22 @@ export function createTerminalUi(): Ui {
       console.error(`${styleText('red', '✖')} ${message}`);
     },
   };
+}
+
+/** The user's editor; may include arguments, e.g. `code --wait`. */
+export function editorCommand(env: NodeJS.ProcessEnv = process.env): string {
+  return env.VISUAL || env.EDITOR || (process.platform === 'win32' ? 'notepad' : 'vi');
+}
+
+function openInEditor(path: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(`${editorCommand()} "${path}"`, { shell: true, stdio: 'inherit' });
+    child.on('error', reject);
+    child.on('exit', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`The editor exited with code ${String(code)}.`));
+    });
+  });
 }
 
 /** Dim helper for secondary text (hints, paths). */

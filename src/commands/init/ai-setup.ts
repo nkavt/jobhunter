@@ -16,7 +16,7 @@ const SHOW_OLDER = Symbol('show older models');
 export interface AiSetupDeps {
   ui: Ui;
   /** Build an adapter for a key. Listing models and testing access don't depend on its model. */
-  connect: (apiKey: string) => LLMAdapter;
+  connect: (apiKey: string, model?: string) => LLMAdapter;
 }
 
 /** Setup can't continue (e.g. too many invalid keys); the message is meant for the user. */
