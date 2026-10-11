@@ -25,7 +25,7 @@ Best matches:
 - **Everything lands in a Google Sheet** with status tabs, colours and dropdowns, ready for you to track your applications.
 - **Your data stays yours.** Your keys and profile live on your machine. Jobhunter can only see the files it created in your Drive.
 
-> 🚧 **Early version (0.1).** `init` and `hunt` work and are used daily, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
+> 🚧 **Early version (0.1).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
 
 > Jobhunter works with **Claude (Anthropic)** today. **More AI providers are coming soon**, starting with Google Gemini.
 
