@@ -102,7 +102,7 @@ describe('init: Google step', () => {
     ).rejects.toBeInstanceOf(CancelledError);
   });
 
-  it('saves the connection in config.json from the init menu', async () => {
+  it('connects from the init menu without adding anything to config.json', async () => {
     tokenEndpoint(server);
     await saveConfig({
       version: 1,
@@ -115,7 +115,7 @@ describe('init: Google step', () => {
     const browser = signsIn();
 
     await runInit({
-      ui: new FakeUi(['google', 'connect', path]),
+      ui: new FakeUi(['google', 'connect', path, 'skip']),
       openBrowser: browser.open,
       connect: () => new FakeLLM(),
     });

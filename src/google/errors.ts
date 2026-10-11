@@ -5,3 +5,15 @@ export class GoogleAuthError extends Error {
     this.name = 'GoogleAuthError';
   }
 }
+
+/** A Google API call failed; `status` is the HTTP status (0 when Google couldn't be reached). */
+export class GoogleApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
+    this.name = 'GoogleApiError';
+  }
+}

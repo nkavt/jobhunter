@@ -12,6 +12,7 @@ import { CancelledError, createTerminalUi, dim, type Ui } from '../../ui/index.j
 import { SetupAbortedError, setupAi } from './ai-setup.js';
 import { importCv } from './cv-step.js';
 import { connectGoogle } from './google-step.js';
+import { setupSheet } from './sheet-step.js';
 import { updateProfile } from './profile-step.js';
 
 export interface InitDeps {
@@ -60,9 +61,12 @@ export async function runInit(deps: InitDeps): Promise<void> {
   if (runProfile) await updateProfile({ ui, llm }, profileName);
 
   // Google needs no config.json entry: the saved credentials + token files are the state.
-  if (steps.has('google')) await connectGoogle(deps);
+  // The tracking sheet follows the connection; it lives in the user's Drive.
+  if (steps.has('google') && (await connectGoogle(deps))) {
+    await setupSheet({ ui }, profileName);
+  }
 
-  ui.info(dim('Coming next in init: creating your tracking sheet.'));
+  ui.info(dim('Setup complete. Next: `jobhunter hunt` (coming soon).'));
 }
 
 async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
@@ -73,7 +77,7 @@ async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
       { name: 'AI provider, key or model', value: 'ai' },
       { name: 'CV (also updates your preferences and candidate profile)', value: 'cv' },
       { name: 'Preferences and candidate profile', value: 'profile' },
-      { name: 'Google Sheets connection', value: 'google' },
+      { name: 'Google Sheets connection and tracking sheet', value: 'google' },
       { name: 'Nothing, exit', value: 'none' },
     ],
     default: 'none',
