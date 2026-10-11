@@ -5,6 +5,7 @@ import { extname, resolve } from 'node:path';
 import mammoth from 'mammoth';
 import type { LLMAdapter, Usage } from '../llm/index.js';
 import { emptyUsage } from '../llm/index.js';
+import cvToMarkdownPrompt from '../prompts/cv-to-markdown.md';
 
 export const MAX_CV_BYTES = 10 * 1024 * 1024;
 export const SUPPORTED_CV_EXTENSIONS = ['.pdf', '.docx', '.md', '.markdown', '.txt'] as const;
@@ -82,19 +83,7 @@ function kindOf(path: string): LoadedCv['kind'] {
   }
 }
 
-export const CV_TO_MARKDOWN_SYSTEM = `You convert CVs and résumés into clean, faithful Markdown.
-
-Rules:
-- Keep every fact exactly as written: names, contact details, links, job titles, companies, dates, numbers, technologies.
-- Do not summarise, rephrase, translate, add, or remove content.
-- Fix only layout artefacts: broken lines, hyphenation, multi-column order, repeated page headers/footers.
-
-Structure:
-- "# Full Name" first, then contact details on the following lines.
-- "## Section" for each section, in the original order (e.g. Summary, Experience, Education, Skills).
-- In Experience: "### Job Title — Company", then a line with location and dates, then bullet points.
-
-Output only the Markdown. No commentary, no code fences.`;
+export const CV_TO_MARKDOWN_SYSTEM = cvToMarkdownPrompt.trim();
 
 /**
  * Convert the CV to Markdown. PDFs go to the model as documents, DOCX is extracted to text

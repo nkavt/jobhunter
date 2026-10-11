@@ -94,6 +94,14 @@ describe('loadCv', () => {
   });
 });
 
+describe('CV prompt', () => {
+  it('loads from src/prompts/cv-to-markdown.md as plain text', () => {
+    expect(CV_TO_MARKDOWN_SYSTEM).toMatch(/^You convert CVs/);
+    expect(CV_TO_MARKDOWN_SYSTEM).toContain('Do not summarise, rephrase, translate');
+    expect(CV_TO_MARKDOWN_SYSTEM).toMatch(/no code fences\.$/);
+  });
+});
+
 describe('convertCv', () => {
   it('uses Markdown and text files as they are, without the AI', async () => {
     const llm = new FakeLLM();
