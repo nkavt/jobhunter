@@ -60,13 +60,15 @@ const VIEW_COLUMN_COUNT = 10;
 const STATUS_COLUMN = 4; // E (0-based)
 
 export const VIEW_TABS = [
-  { title: 'To apply', statuses: ['To apply'] },
-  { title: 'Applied', statuses: ['Applied'] },
-  { title: 'Interview & Offer', statuses: ['Interview', 'Offer'] },
-  { title: 'Declined', statuses: ['Declined'] },
-  { title: 'Ghosted', statuses: ['Ghosted'] },
-  { title: 'Skipped', statuses: ['Skipped'] },
-] as const satisfies readonly { title: string; statuses: readonly Status[] }[];
+  { title: 'To apply', statuses: ['To apply'], tabColor: '#9972D8' },
+  { title: 'Applied', statuses: ['Applied'], tabColor: '#F2BF33' },
+  { title: 'Interview & Offer', statuses: ['Interview', 'Offer'], tabColor: '#4C99E5' },
+  { title: 'Declined', statuses: ['Declined'], tabColor: '#D84C4C' },
+  { title: 'Ghosted', statuses: ['Ghosted'], tabColor: '#597293' },
+  { title: 'Skipped', statuses: ['Skipped'], tabColor: '#999999' },
+] as const satisfies readonly { title: string; statuses: readonly Status[]; tabColor: string }[];
+
+const IGNORED_TAB_COLOR = '#CCCCCC';
 
 /** Fixed sheet IDs so later code can address tabs without looking them up. */
 export const SHEET_IDS = {
@@ -131,9 +133,13 @@ export function buildCreateBody(title: string, timeZone: string): Request {
       ...VIEW_TABS.map((view, index) =>
         tab(SHEET_IDS.views[index] ?? 0, view.title, {
           gridProperties: { frozenRowCount: 1, frozenColumnCount: 2 },
+          tabColorStyle: { rgbColor: hexToRgb(view.tabColor) },
         }),
       ),
-      tab(SHEET_IDS.ignored, 'Ignored', { gridProperties: { frozenRowCount: 1 } }),
+      tab(SHEET_IDS.ignored, 'Ignored', {
+        gridProperties: { frozenRowCount: 1 },
+        tabColorStyle: { rgbColor: hexToRgb(IGNORED_TAB_COLOR) },
+      }),
       tab(SHEET_IDS.meta, '_meta', { hidden: true }),
     ],
   };

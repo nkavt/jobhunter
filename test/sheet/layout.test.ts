@@ -60,6 +60,20 @@ describe('creating the spreadsheet', () => {
     ]);
     expect(body.sheets.at(-1)?.properties.hidden).toBe(true);
   });
+
+  it('colours the status tabs and Ignored, but not Applications', () => {
+    const body = buildCreateBody('Jobhunter', 'UTC') as {
+      sheets: { properties: { title: string; tabColorStyle?: { rgbColor: unknown } } }[];
+    };
+    const colours = Object.fromEntries(
+      body.sheets.map((s) => [s.properties.title, s.properties.tabColorStyle?.rgbColor]),
+    );
+    expect(colours.Applications).toBeUndefined();
+    expect(colours['To apply']).toEqual(hexToRgb('#9972D8'));
+    expect(colours['Interview & Offer']).toEqual(hexToRgb('#4C99E5'));
+    expect(colours.Ignored).toEqual(hexToRgb('#CCCCCC'));
+    expect(colours._meta).toBeUndefined();
+  });
 });
 
 describe('layout requests', () => {
