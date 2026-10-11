@@ -10,6 +10,7 @@ import { ClaudeAdapter, getConfiguredAdapterName, type LLMAdapter } from '../../
 import { CancelledError, createTerminalUi, dim, type Ui } from '../../ui/index.js';
 import { SetupAbortedError, setupAi } from './ai-setup.js';
 import { importCv } from './cv-step.js';
+import { updateProfile } from './profile-step.js';
 
 export interface InitDeps {
   ui: Ui;
@@ -17,12 +18,13 @@ export interface InitDeps {
   connect: (apiKey: string, model?: string) => LLMAdapter;
 }
 
-type Step = 'ai' | 'cv';
+type Step = 'ai' | 'cv' | 'profile';
+const ALL_STEPS: Step[] = ['ai', 'cv', 'profile'];
 
 export async function runInit(deps: InitDeps): Promise<void> {
   const { ui } = deps;
   const existing = await readExistingConfig(ui);
-  const steps = existing ? await chooseSteps(ui, existing) : new Set<Step>(['ai', 'cv']);
+  const steps = existing ? await chooseSteps(ui, existing) : new Set<Step>(ALL_STEPS);
   if (steps.size === 0) {
     ui.info('Nothing changed.');
     return;
@@ -41,11 +43,20 @@ export async function runInit(deps: InitDeps): Promise<void> {
     ui.success(`Saved to ${configFile()}`);
   }
 
-  if (steps.has('cv') && config) {
-    await importCv({ ui, llm: deps.connect(config.apiKey, config.model) }, config.activeProfile);
-  }
+  if (!config) return;
+  const llm = deps.connect(config.apiKey, config.model);
+  const profileName = config.activeProfile;
 
-  ui.info(dim('Coming next in init: job preferences and Google Sheets.'));
+  // A new CV changes the facts the profile is built from, so the profile step follows it.
+  // Skipping the CV skips the profile step too, since there's nothing to build it from.
+  let runProfile = steps.has('profile');
+  if (steps.has('cv')) {
+    const imported = await importCv({ ui, llm }, profileName);
+    runProfile = imported !== undefined;
+  }
+  if (runProfile) await updateProfile({ ui, llm }, profileName);
+
+  ui.info(dim('Coming next in init: Google Sheets.'));
 }
 
 async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
@@ -54,12 +65,13 @@ async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
     choices: [
       { name: 'Everything', value: 'all' },
       { name: 'AI provider, key or model', value: 'ai' },
-      { name: 'CV', value: 'cv' },
+      { name: 'CV (also updates your preferences and candidate profile)', value: 'cv' },
+      { name: 'Preferences and candidate profile', value: 'profile' },
       { name: 'Nothing, exit', value: 'none' },
     ],
     default: 'none',
   });
-  if (choice === 'all') return new Set<Step>(['ai', 'cv']);
+  if (choice === 'all') return new Set<Step>(ALL_STEPS);
   if (choice === 'none') return new Set<Step>();
   return new Set<Step>([choice]);
 }

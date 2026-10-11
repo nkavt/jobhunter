@@ -9,8 +9,20 @@ export interface Choice<T> {
 /** Everything commands need from the terminal; tests replace it with a scripted fake. */
 export interface Ui {
   select<T>(options: { message: string; choices: Choice<T>[]; default?: T }): Promise<T>;
+  /** Pick any number of choices; `default` lists the pre-checked values. */
+  checkbox<T>(options: {
+    message: string;
+    choices: Choice<T>[];
+    default?: T[];
+    /** At least one choice must be picked. */
+    required?: boolean;
+  }): Promise<T[]>;
   /** Free text; an empty answer returns `default` when one is given. */
-  input(options: { message: string; default?: string }): Promise<string>;
+  input(options: {
+    message: string;
+    default?: string;
+    validate?: (value: string) => true | string;
+  }): Promise<string>;
   password(options: {
     message: string;
     validate?: (value: string) => true | string;
