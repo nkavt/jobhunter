@@ -42,6 +42,11 @@ export async function moveToFolder(
   );
 }
 
+/** Permanently delete a file Jobhunter created. */
+export async function deleteFile(client: GoogleClient, fileId: string): Promise<void> {
+  await googleRequest(client, `${DRIVE}/${fileId}`, { method: 'DELETE' });
+}
+
 /** The file's metadata, or `undefined` if it's gone or Jobhunter can no longer see it. */
 export async function getFile(
   client: GoogleClient,

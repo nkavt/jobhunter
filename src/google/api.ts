@@ -34,7 +34,11 @@ export async function googleRequest<T>(
     });
   }
 
-  if (response.ok) return (await response.json()) as T;
+  if (response.ok) {
+    // Some calls (e.g. DELETE) answer 204 with no body.
+    const text = await response.text();
+    return (text ? JSON.parse(text) : undefined) as T;
+  }
   const body = (await response.json().catch(() => ({}))) as GoogleErrorBody;
   throw toError(response.status, body);
 }

@@ -1,7 +1,7 @@
 import { buildCreateBody, buildLayoutRequests } from '../sheet/layout.js';
 import { googleRequest } from './api.js';
 import type { GoogleClient } from './credentials.js';
-import { findOrCreateFolder, moveToFolder } from './drive.js';
+import { deleteFile, findOrCreateFolder, moveToFolder } from './drive.js';
 
 const SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets';
 export const FOLDER_NAME = 'Jobhunter';
@@ -23,13 +23,19 @@ export async function createTrackingSheet(
     SHEETS,
     { method: 'POST', body: buildCreateBody(options.title, options.timeZone) },
   );
-  await googleRequest(client, `${SHEETS}/${created.spreadsheetId}:batchUpdate`, {
-    method: 'POST',
-    body: {
-      requests: buildLayoutRequests({ createdAt: (options.now ?? new Date()).toISOString() }),
-    },
-  });
-  await moveToFolder(client, created.spreadsheetId, folderId);
+  try {
+    await googleRequest(client, `${SHEETS}/${created.spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: {
+        requests: buildLayoutRequests({ createdAt: (options.now ?? new Date()).toISOString() }),
+      },
+    });
+    await moveToFolder(client, created.spreadsheetId, folderId);
+  } catch (error) {
+    // Don't leave a half-built, empty spreadsheet behind; a retry starts clean.
+    await deleteFile(client, created.spreadsheetId).catch(() => undefined);
+    throw error;
+  }
   return { spreadsheetId: created.spreadsheetId, folderId, url: created.spreadsheetUrl };
 }
 

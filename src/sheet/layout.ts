@@ -229,6 +229,11 @@ function statusColours(sheetId: number, statusColumn: number, columns: number): 
   const letter = columnLetter(statusColumn);
   return STATUS_STYLES.map((style, index) => {
     const checks = style.statuses.map((status) => `$${letter}2="${status}"`);
+    // Colour rules only accept a few text properties; an empty textFormat is rejected outright.
+    const textFormat = {
+      ...(style.text ? { foregroundColor: hexToRgb(style.text) } : {}),
+      ...(style.bold ? { bold: true } : {}),
+    };
     return {
       addConditionalFormatRule: {
         index,
@@ -246,10 +251,7 @@ function statusColours(sheetId: number, statusColumn: number, columns: number): 
             },
             format: {
               backgroundColor: hexToRgb(style.background),
-              textFormat: {
-                ...(style.text ? { foregroundColor: hexToRgb(style.text) } : {}),
-                ...(style.bold ? { bold: true } : {}),
-              },
+              ...(Object.keys(textFormat).length > 0 ? { textFormat } : {}),
             },
           },
         },

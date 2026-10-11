@@ -148,3 +148,30 @@ describe('createTrackingSheet', () => {
     ).toHaveLength(0);
   });
 });
+
+describe('createTrackingSheet cleanup', () => {
+  useTempHome();
+  const server = useMockServer();
+
+  it('deletes the half-built spreadsheet when the layout is rejected', async () => {
+    await saveGoogleSession();
+    const calls = googleApis(server);
+    server.use(
+      http.post(`${SHEETS}/:id\\:batchUpdate`, () =>
+        HttpResponse.json(
+          { error: { message: 'Invalid requests[20].addConditionalFormatRule' } },
+          { status: 400 },
+        ),
+      ),
+      http.delete(`${DRIVE}/:id`, ({ request, params }) => {
+        calls.push({ method: request.method, url: new URL(request.url), body: undefined });
+        return new HttpResponse(null, { status: params.id === 'sheet-1' ? 204 : 404 });
+      }),
+    );
+
+    await expect(
+      createTrackingSheet(client, { title: 'Jobhunter', timeZone: 'UTC' }),
+    ).rejects.toThrow('Invalid requests[20]');
+    expect(calls.at(-1)).toMatchObject({ method: 'DELETE', url: new URL(`${DRIVE}/sheet-1`) });
+  });
+});

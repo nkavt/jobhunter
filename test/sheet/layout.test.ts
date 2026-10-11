@@ -154,6 +154,29 @@ describe('layout requests', () => {
     expect(formulasFor(SHEET_IDS.views[2] ?? 0)[0]).toBe('=$F2="To apply"');
   });
 
+  it('only sends text properties colour rules accept, and never an empty textFormat', () => {
+    const formats = ofType('addConditionalFormatRule').map(
+      (r) =>
+        (r.rule as { booleanRule: { format: Record<string, Record<string, unknown> | undefined> } })
+          .booleanRule.format,
+    );
+    for (const format of formats) {
+      expect(
+        Object.keys(format).every((key) => ['backgroundColor', 'textFormat'].includes(key)),
+      ).toBe(true);
+      if (format.textFormat) {
+        expect(Object.keys(format.textFormat).length).toBeGreaterThan(0);
+        expect(
+          Object.keys(format.textFormat).every((key) =>
+            ['bold', 'italic', 'strikethrough', 'foregroundColor'].includes(key),
+          ),
+        ).toBe(true);
+      }
+    }
+    expect(formats[0]).not.toHaveProperty('textFormat');
+    expect(formats[3]?.textFormat).toEqual({ bold: true });
+  });
+
   it('fills each view tab with its FILTER formula', () => {
     const formulas = ofType('updateCells')
       .filter(
