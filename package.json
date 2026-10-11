@@ -1,7 +1,7 @@
 {
   "name": "jobhunter",
   "version": "0.1.0",
-  "description": "AI-powered CLI that discovers job feeds, normalises listings and tracks them in Google Sheets",
+  "description": "AI job hunter for your terminal: scores remote jobs against your CV and tracks them in a Google Sheet",
   "type": "module",
   "bin": {
     "jobhunter": "dist/cli.js"
@@ -28,9 +28,16 @@
   "keywords": [
     "jobs",
     "job-search",
-    "cli",
+    "job-hunting",
+    "remote-jobs",
+    "job-tracker",
+    "cv",
+    "resume",
+    "ai",
     "claude",
-    "google-sheets"
+    "anthropic",
+    "google-sheets",
+    "cli"
   ],
   "license": "MIT",
   "author": "Nikoloz Kavtaradze (https://nkavt.dev)",
