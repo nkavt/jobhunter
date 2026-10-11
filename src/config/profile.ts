@@ -75,6 +75,8 @@ export const PreferencesSchema = z.object({
       companies: z.array(z.string()).default([]),
     })
     .optional(),
+  /** AI score (0–100) a job needs to land in "To apply" instead of "Skipped". Default 50. */
+  minScore: z.number().int().min(0).max(100).optional(),
 });
 
 export const SheetLinkSchema = z.object({

@@ -10,7 +10,7 @@ export const CANCEL = Symbol('cancel');
 export type DynamicAnswer = (prompt: { message: string; choices: Choice<unknown>[] }) => unknown;
 
 export interface RecordedPrompt {
-  type: 'select' | 'input' | 'password' | 'confirm';
+  type: 'select' | 'checkbox' | 'input' | 'password' | 'confirm';
   message: string;
   choices?: Choice<unknown>[];
 }
@@ -58,14 +58,53 @@ export class FakeUi implements Ui {
     return Promise.resolve(choice.value);
   }
 
-  input(options: { message: string; default?: string }): Promise<string> {
+  checkbox<T>(options: {
+    message: string;
+    choices: Choice<T>[];
+    default?: T[];
+    required?: boolean;
+  }): Promise<T[]> {
+    this.prompts.push({
+      type: 'checkbox',
+      message: strip(options.message),
+      choices: options.choices,
+    });
+    const answer = this.next('checkbox', options.message);
+    const values = answer === DEFAULT ? (options.default ?? []) : answer;
+    if (!Array.isArray(values)) throw new Error('checkbox answer must be an array');
+    for (const value of values) {
+      const choice = options.choices.find((c) => c.value === value);
+      if (!choice || choice.disabled) {
+        throw new Error(`"${String(value)}" is not an enabled choice for "${options.message}"`);
+      }
+    }
+    if (options.required && values.length === 0) {
+      throw new Error(`"${options.message}" needs at least one choice`);
+    }
+    return Promise.resolve(values as T[]);
+  }
+
+  /** Validation errors the "user" saw (answers that were rejected and asked again). */
+  readonly rejected: string[] = [];
+
+  input(options: {
+    message: string;
+    default?: string;
+    validate?: (value: string) => true | string;
+  }): Promise<string> {
     this.prompts.push({ type: 'input', message: strip(options.message) });
-    const answer = this.next('input', options.message);
-    if (answer === DEFAULT) return Promise.resolve(options.default ?? '');
-    if (typeof answer !== 'string') throw new Error('input answer must be a string');
-    return Promise.resolve(
-      answer === '' && options.default !== undefined ? options.default : answer,
-    );
+    // Like the real prompt: an invalid answer shows the error and asks again.
+    for (;;) {
+      const answer = this.next('input', options.message);
+      let value: string;
+      if (answer === DEFAULT) value = options.default ?? '';
+      else if (typeof answer === 'string') {
+        value = answer === '' && options.default !== undefined ? options.default : answer;
+      } else throw new Error('input answer must be a string');
+      const valid = options.validate?.(value) ?? true;
+      if (valid === true) return Promise.resolve(value);
+      this.rejected.push(valid);
+    }
   }
 
   async editFile(path: string): Promise<void> {

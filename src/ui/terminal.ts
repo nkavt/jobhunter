@@ -1,4 +1,4 @@
-import { confirm, input, select } from '@inquirer/prompts';
+import { checkbox, confirm, input, select } from '@inquirer/prompts';
 import { spawn } from 'node:child_process';
 import { styleText } from 'node:util';
 import yoctoSpinner from 'yocto-spinner';
@@ -36,11 +36,25 @@ export function createTerminalUi(): Ui {
         }),
       ),
     confirm: (options) => prompt(() => confirm({ ...options, message: label(options.message) })),
-    input: ({ message, default: fallback }) =>
+    input: ({ message, default: fallback, validate }) =>
       prompt(() =>
         input({
           message: label(message),
           ...(fallback !== undefined ? { default: fallback } : {}),
+          ...(validate ? { validate } : {}),
+        }),
+      ),
+    checkbox: ({ message, choices, default: checked = [], required = false }) =>
+      prompt(() =>
+        checkbox({
+          message: label(message),
+          required,
+          choices: choices.map((choice) => ({
+            name: choice.name,
+            value: choice.value,
+            checked: checked.includes(choice.value),
+            ...(choice.disabled !== undefined ? { disabled: choice.disabled } : {}),
+          })),
         }),
       ),
 
