@@ -101,7 +101,8 @@ export async function scoreJobs(
       }),
       schema: batchSchema(uids),
       schemaName: 'job_fit',
-      maxTokens: 400 + batch.length * 250,
+      // A ceiling, not a cost: notes run long with some models, and a cut-off loses the whole batch.
+      maxTokens: 1000 + batch.length * 500,
     });
     const byUid = new Map(data.results.map((result) => [result.uid, result]));
     for (const uid of uids) {
