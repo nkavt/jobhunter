@@ -99,8 +99,9 @@ export class SheetTracker implements Tracker {
   /**
    * RAW input: values are stored exactly as given. With USER_ENTERED, a job title from a feed
    * starting with "=" would run as a formula in the user's sheet.
-   * New rows copy the look of the row above (the header, on an empty tab), so they're
-   * reformatted afterwards: dropdown, dates, wrapped notes.
+   * OVERWRITE fills the empty rows below the table instead of inserting new ones: inserted rows
+   * would push the view tabs' ranges and colour rules down past them. The rows are reformatted
+   * afterwards anyway (dropdown, dates, wrapped notes), in case they were edited by hand.
    */
   private async append(
     tab: keyof typeof TABS,
@@ -109,7 +110,7 @@ export class SheetTracker implements Tracker {
   ): Promise<void> {
     const params = new URLSearchParams({
       valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
+      insertDataOption: 'OVERWRITE',
     });
     const { updates } = await googleRequest<{ updates?: { updatedRange?: string } }>(
       this.client,

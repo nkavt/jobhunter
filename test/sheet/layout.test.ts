@@ -30,10 +30,10 @@ describe('sheet layout helpers', () => {
 
   it('builds the FILTER formula for one or several statuses', () => {
     expect(viewFormula(['To apply'])).toBe(
-      '=IFERROR(SORT(FILTER(Applications!A2:J, (Applications!E2:E="To apply")), 1, TRUE), "Nothing here yet")',
+      '=IFERROR(SORT(FILTER(Applications!A:J, ROW(Applications!A:A)>1, (Applications!E:E="To apply")), 1, TRUE), "Nothing here yet")',
     );
     expect(viewFormula(['Interview', 'Offer'])).toContain(
-      '(Applications!E2:E="Interview")+(Applications!E2:E="Offer")',
+      '(Applications!E:E="Interview")+(Applications!E:E="Offer")',
     );
   });
 });

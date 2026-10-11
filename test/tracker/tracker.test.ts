@@ -157,7 +157,7 @@ describe('SheetTracker', () => {
     );
     expect(Object.fromEntries(appends[0]?.url.searchParams ?? [])).toEqual({
       valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
+      insertDataOption: 'OVERWRITE',
     });
     expect(appends[0]?.body.values).toHaveLength(2);
     // A formula-looking title is stored as plain text, not run.

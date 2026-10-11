@@ -295,10 +295,12 @@ function statusColours(sheetId: number, statusColumn: number, columns: number): 
 export function viewFormula(statuses: readonly Status[]): string {
   const lastColumn = columnLetter(VIEW_COLUMN_COUNT - 1);
   const status = columnLetter(STATUS_COLUMN);
+  // Whole columns + ROW()>1 instead of A2:J: a range starting at row 2 would move down whenever
+  // rows are inserted above it, and the view would miss them.
   const condition = statuses
-    .map((value) => `(Applications!${status}2:${status}="${value}")`)
+    .map((value) => `(Applications!${status}:${status}="${value}")`)
     .join('+');
-  return `=IFERROR(SORT(FILTER(Applications!A2:${lastColumn}, ${condition}), 1, TRUE), "Nothing here yet")`;
+  return `=IFERROR(SORT(FILTER(Applications!A:${lastColumn}, ROW(Applications!A:A)>1, ${condition}), 1, TRUE), "Nothing here yet")`;
 }
 
 export interface MetaInfo {
