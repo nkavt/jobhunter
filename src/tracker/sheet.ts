@@ -1,5 +1,5 @@
 import { googleRequest, type GoogleClient } from '../google/index.js';
-import { APPLICATION_COLUMNS, IGNORED_COLUMNS } from '../sheet/layout.js';
+import { APPLICATION_COLUMNS, dataRowRequests, IGNORED_COLUMNS } from '../sheet/layout.js';
 import {
   applicationCells,
   ignoredCells,
@@ -75,7 +75,8 @@ export class SheetTracker implements Tracker {
     if (jobs.length === 0) return;
     const header = (await this.loadHeaders()).applications;
     await this.append(
-      TABS.applications,
+      'applications',
+      header,
       jobs.map((job) => toRow(header, applicationCells(job))),
     );
   }
@@ -84,7 +85,8 @@ export class SheetTracker implements Tracker {
     if (jobs.length === 0) return;
     const header = (await this.loadHeaders()).ignored;
     await this.append(
-      TABS.ignored,
+      'ignored',
+      header,
       jobs.map((job) => toRow(header, ignoredCells(job))),
     );
   }
@@ -97,17 +99,41 @@ export class SheetTracker implements Tracker {
   /**
    * RAW input: values are stored exactly as given. With USER_ENTERED, a job title from a feed
    * starting with "=" would run as a formula in the user's sheet.
+   * OVERWRITE fills the empty rows below the table instead of inserting new ones: inserted rows
+   * would push the view tabs' ranges and colour rules down past them. The rows are reformatted
+   * afterwards anyway (dropdown, dates, wrapped notes), in case they were edited by hand.
    */
-  private async append(tab: string, rows: (string | number)[][]): Promise<void> {
+  private async append(
+    tab: keyof typeof TABS,
+    header: string[],
+    rows: (string | number)[][],
+  ): Promise<void> {
     const params = new URLSearchParams({
       valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
+      insertDataOption: 'OVERWRITE',
     });
-    await googleRequest(
+    const { updates } = await googleRequest<{ updates?: { updatedRange?: string } }>(
       this.client,
-      `${SHEETS}/${this.spreadsheetId}/values/${encodeURIComponent(`${tab}!A1`)}:append?${params.toString()}`,
+      `${SHEETS}/${this.spreadsheetId}/values/${encodeURIComponent(`${TABS[tab]}!A1`)}:append?${params.toString()}`,
       { method: 'POST', body: { values: rows } },
     );
+    const written = rowSpan(updates?.updatedRange);
+    if (!written) return;
+    await googleRequest(this.client, `${SHEETS}/${this.spreadsheetId}:batchUpdate`, {
+      method: 'POST',
+      body: {
+        requests: dataRowRequests(
+          tab,
+          header,
+          written.start,
+          written.end,
+          rows.map((row) => {
+            const link = row[header.indexOf('Link')];
+            return typeof link === 'string' ? link : undefined;
+          }),
+        ),
+      },
+    });
   }
 }
 
@@ -123,4 +149,12 @@ function requireColumns(tab: string, header: string[] | undefined, required: str
     );
   }
   return columns;
+}
+
+/** "Applications!A2:N13" → rows 1–13 (0-based start, exclusive end), as batchUpdate ranges use. */
+export function rowSpan(range: string | undefined): { start: number; end: number } | undefined {
+  const match = /![A-Z]+(\d+)(?::[A-Z]+(\d+))?$/.exec(range ?? '');
+  if (!match?.[1]) return undefined;
+  const first = Number(match[1]);
+  return { start: first - 1, end: Number(match[2] ?? first) };
 }

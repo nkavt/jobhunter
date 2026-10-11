@@ -24,6 +24,8 @@ const strip = (text: string) => stripVTControlCharacters(text);
 export class FakeUi implements Ui {
   readonly prompts: RecordedPrompt[] = [];
   readonly output: string[] = [];
+  /** Texts passed to a task's `update`, in order. */
+  readonly progress: string[] = [];
   /** Files opened with `editFile`. */
   readonly edited: string[] = [];
   /** Runs when a file is "opened in the editor", e.g. to simulate the user's changes. */
@@ -130,9 +132,13 @@ export class FakeUi implements Ui {
     return Promise.resolve(answer === DEFAULT ? (options.default ?? false) : Boolean(answer));
   }
 
-  async task<T>(text: string, run: () => Promise<T>, done?: (result: T) => string): Promise<T> {
+  async task<T>(
+    text: string,
+    run: (update: (text: string) => void) => Promise<T>,
+    done?: (result: T) => string,
+  ): Promise<T> {
     try {
-      const result = await run();
+      const result = await run((update) => this.progress.push(strip(update)));
       this.output.push(`✔ ${done ? done(result) : text}`);
       return result;
     } catch (error) {

@@ -85,8 +85,24 @@ export function titleKeywords(
   return [...keywords];
 }
 
+/** Software roles under any name ("Product Engineer", "AI Developer"): the AI judges the fit. */
+const SOFTWARE_ROLE = /\b(engineer|engineering|developer|programmer|swe)s?\b/i;
+/** Engineer titles that aren't software development. */
+const NOT_SOFTWARE =
+  /\b(sales|pre-?sales|solutions?|support|customer|success|field|mechanical|electrical|civil|chemical|hardware|manufacturing|process|quality|construction|structural|maintenance|network|recruit\w*|manager)\b/i;
+
+/**
+ * True when the title has one of the keywords, or is a software engineering role of any kind
+ * ("Product Engineer", "AI Engineer") so the AI can judge it.
+ *
+ * @example
+ * titleMatches('Senior Product Engineer', ['frontend']) // true: a software role
+ * titleMatches('Sales Engineer', ['frontend'])          // false
+ * titleMatches('Account Executive', ['frontend'])       // false
+ */
 export function titleMatches(title: string, keywords: readonly string[]): boolean {
   if (keywords.length === 0) return true;
   const squashed = squash(title);
-  return keywords.some((keyword) => squashed.includes(keyword));
+  if (keywords.some((keyword) => squashed.includes(keyword))) return true;
+  return SOFTWARE_ROLE.test(title) && !NOT_SOFTWARE.test(title);
 }

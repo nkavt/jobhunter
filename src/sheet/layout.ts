@@ -23,6 +23,8 @@ export interface ColumnSpec {
   width: number;
   hidden?: boolean;
   date?: boolean;
+  /** Long text: wrap it so the whole note is readable. */
+  wrap?: boolean;
 }
 
 /** `Applications`: A–J are what the view tabs show; K–N are Jobhunter's own columns. */
@@ -34,7 +36,7 @@ export const APPLICATION_COLUMNS = [
   { header: 'Status', width: 110 },
   { header: 'Last update', width: 110, date: true },
   { header: 'Link', width: 220 },
-  { header: 'Notes', width: 420 },
+  { header: 'Notes', width: 420, wrap: true },
   { header: 'Note 1', width: 220 },
   { header: 'Note 2', width: 220 },
   { header: 'Key', width: 120, hidden: true },
@@ -48,7 +50,7 @@ export const IGNORED_COLUMNS = [
   { header: 'Company', width: 180 },
   { header: 'Role', width: 240 },
   { header: 'Channel', width: 170 },
-  { header: 'Reason', width: 320 },
+  { header: 'Reason', width: 320, wrap: true },
   { header: 'Found', width: 110, date: true },
   { header: 'Link', width: 220 },
   { header: 'Key', width: 120, hidden: true },
@@ -196,7 +198,8 @@ function columnRequests(sheetId: number, columns: readonly ColumnSpec[], offset 
         },
       },
     ];
-    if (column.date) {
+    const format = cellFormat(column);
+    if (format) {
       requests.push({
         repeatCell: {
           range: {
@@ -205,8 +208,8 @@ function columnRequests(sheetId: number, columns: readonly ColumnSpec[], offset 
             startColumnIndex: offset + index,
             endColumnIndex: offset + index + 1,
           },
-          cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
-          fields: 'userEnteredFormat.numberFormat',
+          cell: { userEnteredFormat: format.format },
+          fields: format.fields,
         },
       });
     }
@@ -214,10 +217,32 @@ function columnRequests(sheetId: number, columns: readonly ColumnSpec[], offset 
   });
 }
 
-function statusDropdown(sheetId: number, column: number, values: readonly string[]): Request {
+function cellFormat(
+  column: ColumnSpec,
+): { format: Record<string, unknown>; fields: string } | undefined {
+  const format = {
+    ...(column.date ? { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } : {}),
+    ...(column.wrap ? { wrapStrategy: 'WRAP', verticalAlignment: 'TOP' } : {}),
+  };
+  const fields = Object.keys(format).map((key) => `userEnteredFormat.${key}`);
+  return fields.length > 0 ? { format, fields: fields.join(',') } : undefined;
+}
+
+function statusDropdown(
+  sheetId: number,
+  column: number,
+  values: readonly string[],
+  rows: { start: number; end?: number } = { start: 1 },
+): Request {
   return {
     setDataValidation: {
-      range: { sheetId, startRowIndex: 1, startColumnIndex: column, endColumnIndex: column + 1 },
+      range: {
+        sheetId,
+        startRowIndex: rows.start,
+        ...(rows.end === undefined ? {} : { endRowIndex: rows.end }),
+        startColumnIndex: column,
+        endColumnIndex: column + 1,
+      },
       rule: {
         condition: {
           type: 'ONE_OF_LIST',
@@ -270,15 +295,86 @@ function statusColours(sheetId: number, statusColumn: number, columns: number): 
 export function viewFormula(statuses: readonly Status[]): string {
   const lastColumn = columnLetter(VIEW_COLUMN_COUNT - 1);
   const status = columnLetter(STATUS_COLUMN);
+  // Whole columns + ROW()>1 instead of A2:J: a range starting at row 2 would move down whenever
+  // rows are inserted above it, and the view would miss them.
   const condition = statuses
-    .map((value) => `(Applications!${status}2:${status}="${value}")`)
+    .map((value) => `(Applications!${status}:${status}="${value}")`)
     .join('+');
-  return `=IFERROR(SORT(FILTER(Applications!A2:${lastColumn}, ${condition}), 1, TRUE), "Nothing here yet")`;
+  return `=IFERROR(SORT(FILTER(Applications!A:${lastColumn}, ROW(Applications!A:A)>1, ${condition}), 1, TRUE), "Nothing here yet")`;
 }
 
 export interface MetaInfo {
   createdAt: string;
 }
+
+const RESTORE_VALUES = ['To apply'];
+
+/**
+ * Formatting for freshly written data rows `start`–`end` (0-based, end exclusive), found by the
+ * tab's actual header. Rows appended under the header copy its look (bold, grey) and miss the
+ * dropdowns, so this resets them to the data-row look.
+ */
+export function dataRowRequests(
+  tab: 'applications' | 'ignored',
+  header: readonly string[],
+  start: number,
+  end: number,
+  /** The rows' Link values, in order: made clickable (values are written as plain text). */
+  links: readonly (string | undefined)[] = [],
+): Request[] {
+  const sheetId = tab === 'applications' ? SHEET_IDS.applications : SHEET_IDS.ignored;
+  const specs: readonly ColumnSpec[] =
+    tab === 'applications' ? APPLICATION_COLUMNS : IGNORED_COLUMNS;
+  const rows = { sheetId, startRowIndex: start, endRowIndex: end };
+  const requests: Request[] = [
+    {
+      repeatCell: {
+        range: { ...rows, startColumnIndex: 0, endColumnIndex: header.length },
+        cell: {
+          userEnteredFormat:
+            tab === 'ignored' ? { textFormat: { foregroundColor: hexToRgb(GREY_TEXT) } } : {},
+        },
+        fields: 'userEnteredFormat',
+      },
+    },
+  ];
+  header.forEach((name, index) => {
+    const spec = specs.find((column) => column.header === name);
+    const format = spec && cellFormat(spec);
+    if (format) {
+      requests.push({
+        repeatCell: {
+          range: { ...rows, startColumnIndex: index, endColumnIndex: index + 1 },
+          cell: { userEnteredFormat: format.format },
+          fields: format.fields,
+        },
+      });
+    }
+  });
+  const dropdown = tab === 'applications' ? header.indexOf('Status') : header.indexOf('Restore');
+  if (dropdown >= 0) {
+    const values = tab === 'applications' ? STATUSES : RESTORE_VALUES;
+    requests.push(statusDropdown(sheetId, dropdown, values, { start, end }));
+  }
+  const linkAt = header.indexOf('Link');
+  if (linkAt >= 0 && links.some(isWebLink)) {
+    requests.push({
+      updateCells: {
+        start: { sheetId, rowIndex: start, columnIndex: linkAt },
+        rows: links.map((link) => ({
+          values: [
+            isWebLink(link) ? { userEnteredFormat: { textFormat: { link: { uri: link } } } } : {},
+          ],
+        })),
+        fields: 'userEnteredFormat.textFormat.link',
+      },
+    });
+  }
+  return requests;
+}
+
+const isWebLink = (value: string | undefined): value is string =>
+  value !== undefined && /^https?:\/\//i.test(value);
 
 /** All `batchUpdate` requests that turn the empty tabs into the tracking sheet. */
 export function buildLayoutRequests(meta: MetaInfo): Request[] {
@@ -295,7 +391,7 @@ export function buildLayoutRequests(meta: MetaInfo): Request[] {
     headerStyle(apps, APPLICATION_COLUMNS.length),
     ...columnRequests(apps, APPLICATION_COLUMNS),
     statusDropdown(apps, STATUS_COLUMN, STATUSES),
-    ...statusColours(apps, STATUS_COLUMN, VIEW_COLUMN_COUNT),
+    ...statusColours(apps, STATUS_COLUMN, APPLICATION_COLUMNS.length),
 
     // View tabs: A = Change status, B… = Applications A–J
     ...VIEW_TABS.flatMap((view, index) => {
@@ -319,7 +415,7 @@ export function buildLayoutRequests(meta: MetaInfo): Request[] {
     ),
     headerStyle(SHEET_IDS.ignored, IGNORED_COLUMNS.length),
     ...columnRequests(SHEET_IDS.ignored, IGNORED_COLUMNS),
-    statusDropdown(SHEET_IDS.ignored, 0, ['To apply']),
+    statusDropdown(SHEET_IDS.ignored, 0, RESTORE_VALUES),
     {
       repeatCell: {
         range: { sheetId: SHEET_IDS.ignored, startRowIndex: 1 },

@@ -1,19 +1,16 @@
 import type { Command } from 'commander';
+import { registerHunt } from './hunt/index.js';
 import { registerInit } from './init/index.js';
 import { notImplemented } from './not-implemented.js';
 
 export function registerCommands(program: Command): void {
   registerInit(program);
+  registerHunt(program);
 
   program
     .command('discover')
     .description('Let the AI find new job feeds that match your profile')
     .action(notImplemented('discover'));
-
-  program
-    .command('hunt')
-    .description('Fetch all saved feeds, skip known jobs, and add new ones to your sheet')
-    .action(notImplemented('hunt'));
 
   program
     .command('map')
