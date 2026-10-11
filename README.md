@@ -25,6 +25,8 @@ Best matches:
 - **Everything lands in a Google Sheet** with status tabs, colours and dropdowns, ready for you to track your applications.
 - **Your data stays yours.** Your keys and profile live on your machine. Jobhunter can only see the files it created in your Drive.
 
+> 🚧 **Early version (0.1).** `init` and `hunt` work and are used daily, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
+
 > Jobhunter works with **Claude (Anthropic)** today. **More AI providers are coming soon**, starting with Google Gemini.
 
 ## Contents
@@ -174,7 +176,7 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
 1. **Fetch** the job boards: [Remotive](https://remotive.com), [Remote OK](https://remoteok.com) and [We Work Remotely](https://weworkremotely.com). A board checked in the last 6 hours is skipped, to go easy on it. If one board is down, the others still run.
 
-   More boards are coming in future versions. Also on the way: `jobhunter discover`, which lets the AI search the web for job boards and feeds that suit your profile, and `jobhunter map`, which teaches Jobhunter to read a new feed so you can add any board you like.
+   More boards are coming in future versions. Also on the way: `jobhunter discover` will let the AI search the web for job boards and feeds that suit your profile. You pick the ones you want and Jobhunter learns to read them, so the next `hunt` includes them. Found a feed yourself? `jobhunter map <url>` will add that one.
 
 2. **Skip jobs already in your sheet**, in any tab, including jobs you added by hand with a link, plus the same job listed on two boards.
 3. **Filter in code.** A job is ignored if:
@@ -215,12 +217,12 @@ jobhunter hunt --min-score 70     # stricter: only strong matches go to To apply
 
 These commands are listed in `jobhunter --help` but aren't ready yet:
 
-| Command                      | What it will do                                                                                |
-| ---------------------------- | ---------------------------------------------------------------------------------------------- |
-| `jobhunter discover`         | Let the AI search the web for more job boards and feeds that match your profile.               |
-| `jobhunter sync`             | Apply the "Change status" picks from the status tabs to the Applications tab.                  |
-| `jobhunter map <source>`     | Have the AI work out how to read a new job feed (JSON or XML), so you can add your own boards. |
-| `jobhunter convert <source>` | Convert a job feed to Jobhunter's format with its saved mapping.                               |
+| Command                      | What it will do                                                                                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `jobhunter discover`         | Let the AI search the web for job boards and feeds that match your profile; pick the ones you want and Jobhunter learns to read them for `hunt`. |
+| `jobhunter sync`             | Apply the "Change status" picks from the status tabs to the Applications tab.                                                                    |
+| `jobhunter map <source>`     | Add a job feed you found yourself (JSON or XML): the AI works out how to read it, and it joins your boards.                                      |
+| `jobhunter convert <source>` | Convert a job feed to Jobhunter's format with its saved mapping.                                                                                 |
 
 Also planned: more AI providers (Google Gemini first), using an existing spreadsheet as your tracking sheet, and Jobhunter's own Google sign-in.
 
