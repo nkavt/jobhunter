@@ -7,7 +7,7 @@ For each job, return:
   - 80–100: strong fit, worth applying now
   - 50–79: decent fit with some gaps
   - 0–49: weak fit
-- note: 1–3 short sentences written to the candidate: why it fits (their strongest matching experience), the main gaps or risks, and anything notable in the description (timezone, location limits, required languages, unusual hiring steps). When the score is below 50, start with "Declined:" and the main reason.
+- note: 1–3 short sentences written to the candidate: why it fits (their strongest matching experience), the main gaps or risks, and anything notable in the description (timezone, location limits, required languages, unusual hiring steps). When the score is below {{minScore}} (the candidate's cut-off), start with "Declined:" and the main reason.
 
 Rules:
 

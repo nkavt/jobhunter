@@ -5,6 +5,14 @@ import { addUsage, emptyUsage, type LLMAdapter, type Usage } from '../llm/index.
 import { renderSystemPrompt, renderUserPrompt } from '../prompts/index.js';
 import { describeJob, describePreferences } from './describe.js';
 
+/** Score a job needs to land in "To apply" when the user hasn't set `preferences.minScore`. */
+export const DEFAULT_MIN_SCORE = 50;
+
+/** The user's cut-off: their `minScore` preference, or the default. */
+export function minScoreFor(preferences: Preferences | undefined): number {
+  return preferences?.minScore ?? DEFAULT_MIN_SCORE;
+}
+
 export interface Candidate {
   /** `instructions.md`: the candidate profile written for scoring. */
   instructions: string;
@@ -74,6 +82,8 @@ export async function scoreJobs(
     candidate: candidate.instructions.trim(),
     cv: candidate.cv.trim(),
     preferences: describePreferences(candidate.preferences),
+    // Same cut-off hunt uses for To apply vs Skipped, so "Declined:" notes match the status.
+    minScore: String(minScoreFor(candidate.preferences)),
   });
 
   const fits: Fit[] = [];

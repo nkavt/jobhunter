@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { Preferences } from '../../src/config/index.js';
-import { describeJob, describePreferences, scoreJobs } from '../../src/fit/index.js';
+import {
+  DEFAULT_MIN_SCORE,
+  describeJob,
+  describePreferences,
+  minScoreFor,
+  scoreJobs,
+} from '../../src/fit/index.js';
 import type { Job } from '../../src/jobs/index.js';
 import type { JsonRequest } from '../../src/llm/index.js';
 import { InvalidResponseError } from '../../src/llm/index.js';
@@ -64,6 +70,32 @@ describe('scoreJobs', () => {
     expect(requests[0]?.prompt).toContain('<job uid="j1">');
     expect(requests[0]?.prompt).toContain('<job uid="j2">');
     expect(requests[1]?.prompt).toContain('Frontend Engineer 3');
+  });
+
+  it('tells the AI the user\'s cut-off for "Declined:" notes', async () => {
+    const withDefault = scorer();
+    await scoreJobs([job(1)], candidate, withDefault);
+    const defaultSystem = (withDefault.calls[0]?.request as JsonRequest<unknown>).system;
+    expect(defaultSystem).toContain(
+      'When the score is below 50 (the candidate\'s cut-off), start with "Declined:"',
+    );
+
+    const strict = scorer();
+    await scoreJobs(
+      [job(1)],
+      { ...candidate, preferences: { ...preferences, minScore: 70 } },
+      strict,
+    );
+    expect((strict.calls[0]?.request as JsonRequest<unknown>).system).toContain(
+      "below 70 (the candidate's cut-off)",
+    );
+  });
+
+  it('uses the minScore preference, or the default', () => {
+    expect(DEFAULT_MIN_SCORE).toBe(50);
+    expect(minScoreFor(undefined)).toBe(50);
+    expect(minScoreFor({ ...preferences, minScore: 70 })).toBe(70);
+    expect(minScoreFor({ ...preferences, minScore: 0 })).toBe(0);
   });
 
   it('asks again when a job is missing from the answer', async () => {
