@@ -233,13 +233,19 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
       readFile(cvFile(profile.name), 'utf8'),
       readFile(instructionsFile(profile.name), 'utf8'),
     ]);
+    const scoring = `Scoring ${String(toScore.length)} jobs with ${getAdapterName(llm)}`;
     const { fits, usage } = await ui.task(
-      `Scoring ${String(toScore.length)} jobs with ${getAdapterName(llm)}…`,
-      () =>
+      `${scoring}… 0/${String(toScore.length)}`,
+      (update) =>
         scoreJobs(
           toScore.map((item) => item.job),
           { cv, instructions, preferences: profile.preferences },
           llm,
+          {
+            onBatch: (done, total) => {
+              update(`${scoring}… ${String(done)}/${String(total)}`);
+            },
+          },
         ),
       () => `Scored ${String(toScore.length)} jobs`,
     );

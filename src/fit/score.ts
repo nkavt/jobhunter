@@ -76,7 +76,7 @@ export async function scoreJobs(
   llm: LLMAdapter,
   options: ScoreOptions = {},
 ): Promise<{ fits: Fit[]; usage: Usage }> {
-  const batchSize = options.batchSize ?? 8;
+  const batchSize = options.batchSize ?? 5;
   const maxDescriptionChars = options.maxDescriptionChars ?? 4000;
   const system = renderSystemPrompt('job-fit', {
     candidate: candidate.instructions.trim(),

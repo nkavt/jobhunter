@@ -63,11 +63,13 @@ export function createTerminalUi(): Ui {
     async task(text, run, done) {
       const spinner = yoctoSpinner({ text }).start();
       try {
-        const result = await run();
+        const result = await run((update) => {
+          spinner.text = update;
+        });
         spinner.success(done ? done(result) : text);
         return result;
       } catch (error) {
-        spinner.error(text);
+        spinner.error(spinner.text);
         throw error;
       }
     },

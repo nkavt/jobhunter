@@ -30,8 +30,15 @@ export interface Ui {
   confirm(options: { message: string; default?: boolean }): Promise<boolean>;
   /** Open a file in the user's editor ($VISUAL / $EDITOR) and wait until it's closed. */
   editFile(path: string): Promise<void>;
-  /** Show a spinner while `run` works; ✔ `done` on success, ✖ on failure (the error is rethrown). */
-  task<T>(text: string, run: () => Promise<T>, done?: (result: T) => string): Promise<T>;
+  /**
+   * Show a spinner while `run` works; ✔ `done` on success, ✖ on failure (the error is rethrown).
+   * `run` can call `update` to change the spinner text, e.g. to show progress.
+   */
+  task<T>(
+    text: string,
+    run: (update: (text: string) => void) => Promise<T>,
+    done?: (result: T) => string,
+  ): Promise<T>;
   info(message: string): void;
   success(message: string): void;
   warn(message: string): void;
