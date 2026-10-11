@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-// Shared by profile preferences (jh-2/jh-7) and the canonical job format (jh-9).
+// Shared by profile preferences and the canonical job format.
 
 export const WorkModeSchema = z.enum(['remote', 'hybrid', 'onsite']);
 export type WorkMode = z.infer<typeof WorkModeSchema>;

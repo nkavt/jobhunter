@@ -25,7 +25,7 @@ export const CvInfoSchema = z.object({
   parsedAt: z.iso.datetime(),
 });
 
-/** Facts Claude extracts from `cv.md`; never asked as questions (jh-7). */
+/** Facts Claude extracts from `cv.md`; never asked as questions. */
 export const DerivedSchema = z.object({
   roles: z.array(z.string().min(1)),
   seniority: SenioritySchema,
@@ -39,7 +39,7 @@ export const DerivedSchema = z.object({
   location: z.string().optional(),
 });
 
-/** What the user wants next; answered in `init` / `jobhunter prefs` (jh-7). */
+/** What the user wants next; answered in `init` / `jobhunter prefs`. */
 export const PreferencesSchema = z.object({
   workModes: z.array(WorkModeSchema).min(1),
   remote: z
@@ -80,7 +80,7 @@ export const PreferencesSchema = z.object({
 export const SheetLinkSchema = z.object({
   spreadsheetId: z.string().min(1),
   folderId: z.string().min(1).optional(),
-  /** Header mapping for a linked existing sheet (jh-20); `null` = default layout. */
+  /** Header mapping for a linked existing sheet; `null` = default layout. */
   columns: z.record(z.string(), z.string()).nullable(),
   statusMap: z.record(z.string(), z.string()).nullable(),
 });

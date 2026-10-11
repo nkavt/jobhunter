@@ -42,7 +42,9 @@ describe('jobhunter CLI', () => {
   it('reports stub commands as not implemented with a non-zero exit code', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     await run(['init']).parse();
-    expect(error).toHaveBeenCalledWith(expect.stringContaining('not implemented yet (jh-8)'));
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('`jobhunter init` is not implemented yet'),
+    );
     expect(process.exitCode).toBe(1);
   });
 
