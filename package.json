@@ -35,6 +35,11 @@
   "license": "MIT",
   "author": "Nikoloz Kavtaradze (https://nkavt.dev)",
   "homepage": "https://nkavt.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nkavt/jobhunter.git"
+  },
+  "bugs": "https://github.com/nkavt/jobhunter/issues",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
     "@inquirer/prompts": "^8.7.3",
