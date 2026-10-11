@@ -175,6 +175,9 @@ describe('jobhunter hunt', () => {
       '6 jobs · 2 already in your sheet · 4 new → 2 ignored by your filters · 1 To apply · 1 Skipped',
     );
     expect(ui.output.join('\n')).toContain('Senior Frontend Engineer 90 · Company great');
+    expect(ui.output.at(-1)).toBe(
+      'Your sheet: https://docs.google.com/spreadsheets/d/sheet-1/edit',
+    );
 
     const state = await loadSourceState();
     expect(state['board-a']).toEqual({ lastFetchedAt: now.toISOString(), lastJobCount: 4 });
