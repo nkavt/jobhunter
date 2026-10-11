@@ -27,7 +27,7 @@ export interface FakeLLMOptions {
   providerName?: string;
   models?: ModelInfo[];
   text?: string | ((request: TextRequest) => string);
-  /** Raw (unvalidated) JSON the "model" returns; a function gets the attempt number (0, 1). */
+  /** Raw (unvalidated) JSON the "model" returns; a function gets the attempt (0, 1) and the request. */
   json?: unknown;
   search?: { data: unknown; sources?: Source[] };
   /** Make a method throw instead of answering; a function can decide per request. */
@@ -90,7 +90,9 @@ export class FakeLLM implements LLMAdapter {
       if (feedback !== undefined) this.calls.push({ method, request, feedback });
       const { json } = this.options;
       const value: unknown =
-        typeof json === 'function' ? (json as (n: number) => unknown)(attempt) : json;
+        typeof json === 'function'
+          ? (json as (n: number, request: JsonRequest<T>) => unknown)(attempt, request)
+          : json;
       attempt++;
       return Promise.resolve({ value, usage: emptyUsage() });
     });
