@@ -204,8 +204,16 @@ describe('SheetTracker', () => {
         fields: 'userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment',
       },
     });
+    const link = APP_HEADER.indexOf('Link');
+    expect(requests).toContainEqual({
+      updateCells: {
+        start: { sheetId: SHEET_IDS.applications, rowIndex: 1, columnIndex: link },
+        rows: [{ values: [{ userEnteredFormat: { textFormat: { link: { uri: job.url } } } }] }],
+        fields: 'userEnteredFormat.textFormat.link',
+      },
+    });
     const status = APP_HEADER.indexOf('Status');
-    expect(requests.at(-1)?.setDataValidation).toMatchObject({
+    expect(requests.find((r) => 'setDataValidation' in r)?.setDataValidation).toMatchObject({
       range: { ...rows, startColumnIndex: status, endColumnIndex: status + 1 },
       rule: { condition: { type: 'ONE_OF_LIST' }, showCustomUi: true },
     });

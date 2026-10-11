@@ -319,6 +319,8 @@ export function dataRowRequests(
   header: readonly string[],
   start: number,
   end: number,
+  /** The rows' Link values, in order: made clickable (values are written as plain text). */
+  links: readonly (string | undefined)[] = [],
 ): Request[] {
   const sheetId = tab === 'applications' ? SHEET_IDS.applications : SHEET_IDS.ignored;
   const specs: readonly ColumnSpec[] =
@@ -354,8 +356,25 @@ export function dataRowRequests(
     const values = tab === 'applications' ? STATUSES : RESTORE_VALUES;
     requests.push(statusDropdown(sheetId, dropdown, values, { start, end }));
   }
+  const linkAt = header.indexOf('Link');
+  if (linkAt >= 0 && links.some(isWebLink)) {
+    requests.push({
+      updateCells: {
+        start: { sheetId, rowIndex: start, columnIndex: linkAt },
+        rows: links.map((link) => ({
+          values: [
+            isWebLink(link) ? { userEnteredFormat: { textFormat: { link: { uri: link } } } } : {},
+          ],
+        })),
+        fields: 'userEnteredFormat.textFormat.link',
+      },
+    });
+  }
   return requests;
 }
+
+const isWebLink = (value: string | undefined): value is string =>
+  value !== undefined && /^https?:\/\//i.test(value);
 
 /** All `batchUpdate` requests that turn the empty tabs into the tracking sheet. */
 export function buildLayoutRequests(meta: MetaInfo): Request[] {
@@ -372,7 +391,7 @@ export function buildLayoutRequests(meta: MetaInfo): Request[] {
     headerStyle(apps, APPLICATION_COLUMNS.length),
     ...columnRequests(apps, APPLICATION_COLUMNS),
     statusDropdown(apps, STATUS_COLUMN, STATUSES),
-    ...statusColours(apps, STATUS_COLUMN, VIEW_COLUMN_COUNT),
+    ...statusColours(apps, STATUS_COLUMN, APPLICATION_COLUMNS.length),
 
     // View tabs: A = Change status, B… = Applications A–J
     ...VIEW_TABS.flatMap((view, index) => {

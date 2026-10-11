@@ -121,7 +121,18 @@ export class SheetTracker implements Tracker {
     if (!written) return;
     await googleRequest(this.client, `${SHEETS}/${this.spreadsheetId}:batchUpdate`, {
       method: 'POST',
-      body: { requests: dataRowRequests(tab, header, written.start, written.end) },
+      body: {
+        requests: dataRowRequests(
+          tab,
+          header,
+          written.start,
+          written.end,
+          rows.map((row) => {
+            const link = row[header.indexOf('Link')];
+            return typeof link === 'string' ? link : undefined;
+          }),
+        ),
+      },
     });
   }
 }
