@@ -14,12 +14,6 @@ export const ConfigSchema = z.object({
   model: z.string().min(1),
   /** Asked in `init`; there is deliberately no environment variable fallback. */
   apiKey: z.string().min(1),
-  google: z
-    .object({
-      /** Where the user's OAuth client file originally came from (reference only). */
-      credentialsSource: z.string(),
-    })
-    .optional(),
   activeProfile: ProfileNameSchema.default('default'),
 });
 export type Config = z.infer<typeof ConfigSchema>;

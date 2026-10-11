@@ -126,7 +126,7 @@ describe('init: preferences and candidate profile', () => {
       await withCv();
       const ui = new FakeUi(['profile', ...ACCEPT_PREFERENCES, DEFAULT]);
 
-      await runInit({ ui, connect: () => llm() });
+      await runInit({ openBrowser: () => undefined, ui, connect: () => llm() });
 
       expect(ui.prompts.filter((p) => p.type === 'password')).toHaveLength(0);
       expect(await readFile(instructionsFile('default'), 'utf8')).toBe(PROFILE_MD);
@@ -138,7 +138,7 @@ describe('init: preferences and candidate profile', () => {
       await writeFileAtomic(source, CV);
       const ui = new FakeUi(['cv', source, DEFAULT, ...ACCEPT_PREFERENCES, DEFAULT]);
 
-      await runInit({ ui, connect: () => llm() });
+      await runInit({ openBrowser: () => undefined, ui, connect: () => llm() });
 
       expect((await readProfile('default'))?.derived?.seniority).toBe('senior');
       expect(await readFile(instructionsFile('default'), 'utf8')).toBe(PROFILE_MD);

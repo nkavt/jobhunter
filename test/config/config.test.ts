@@ -1,4 +1,4 @@
-import { stat, writeFile, mkdir } from 'node:fs/promises';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -30,11 +30,8 @@ describe('config.json', () => {
   });
 
   it('round-trips through save and load', async () => {
-    await saveConfig({ ...config, google: { credentialsSource: '/tmp/client.json' } });
-    expect(await loadConfig()).toEqual({
-      ...config,
-      google: { credentialsSource: '/tmp/client.json' },
-    });
+    await saveConfig(config);
+    expect(await loadConfig()).toEqual(config);
   });
 
   it.skipIf(isWindows)('is written with mode 0600 because it holds the API key', async () => {
@@ -53,6 +50,18 @@ describe('config.json', () => {
   it('refuses to save a config without an API key', async () => {
     await expect(saveConfig({ ...config, apiKey: '' })).rejects.toThrow();
     expect(await readConfig()).toBeUndefined();
+  });
+
+  it('still reads older config files that have a google entry, and drops it on save', async () => {
+    await mkdir(dirname(configFile()), { recursive: true });
+    await writeFile(
+      configFile(),
+      JSON.stringify({ ...config, google: { credentialsSource: '/x.json' } }),
+    );
+    const loaded = await loadConfig();
+    expect(loaded).toEqual(config);
+    await saveConfig(loaded);
+    expect(JSON.parse(await readFile(configFile(), 'utf8'))).not.toHaveProperty('google');
   });
 
   it('rejects unknown providers in the file', async () => {
