@@ -40,7 +40,7 @@ describe('end of init', () => {
     await finishInit(ui, 'default');
 
     expect(await missingSetup('default')).toEqual([]);
-    expect(ui.output).toContain("✔ 🎉 You're all set. Happy hunting! 🏹");
+    expect(ui.output).toContain("✔ You're all set. 🎉 Happy hunting! 🏹");
   });
 
   it('lists what is still missing, in init order', async () => {

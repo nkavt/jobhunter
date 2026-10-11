@@ -30,7 +30,7 @@ export async function finishInit(ui: Ui, profileName: string): Promise<void> {
   const missing = await missingSetup(profileName);
   ui.info('');
   if (missing.length === 0) {
-    ui.success("🎉 You're all set. Happy hunting! 🏹");
+    ui.success("You're all set. 🎉 Happy hunting! 🏹");
     ui.info(dim('Next: `jobhunter hunt` finds new jobs and scores them for you (coming soon).'));
   } else {
     ui.info(`Almost there. Still to set up: ${missing.join(', ')}.`);
