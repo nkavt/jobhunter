@@ -4,7 +4,25 @@ import { formatSalary, formatTimezone } from '../profile/preferences.js';
 
 const label = (value: string) => value.replace(/_/g, '-');
 
-/** The user's preferences as plain sentences for the AI. */
+/**
+ * The user's preferences as plain sentences for the AI. Lines for things the user didn't set
+ * (onsite, salary, avoid lists) are left out.
+ *
+ * @example
+ * describePreferences(preferences)
+ * // Work mode: remote.
+ * // Remote: can legally work from GE, timezone UTC+4 ±3h.
+ * // Visa sponsorship needed: no.
+ * // Employment type: full-time.
+ * // Minimum salary: 60000 USD/year.
+ *
+ * // With hybrid work and avoid lists:
+ * // Work mode: hybrid.
+ * // Onsite/hybrid: Tbilisi, Berlin; relocating only to DE, NL.
+ * // …
+ * // Avoid industries: gambling.
+ * // Avoid companies: Initech.
+ */
 export function describePreferences(preferences: Preferences | undefined): string {
   if (!preferences) return 'No preferences given.';
   const lines = [`Work mode: ${preferences.workModes.join(', ')}.`];
@@ -35,7 +53,31 @@ export function describePreferences(preferences: Preferences | undefined): strin
   return lines.join('\n');
 }
 
-/** One job as text for the AI, under a short uid; long descriptions are cut. */
+/**
+ * One job as text for the AI, under a short uid. Fields the job doesn't have are left out;
+ * descriptions longer than `maxDescriptionChars` are cut and marked.
+ *
+ * @example
+ * describeJob(job, 'j1', 4000)
+ * // <job uid="j1">
+ * // Title: Frontend Engineer 1
+ * // Company: Acme
+ * // Location: anywhere
+ * // Work mode: remote
+ * // Employment type: full-time
+ * // Salary: $80k - $150k
+ * // Tags: react
+ * //
+ * // We are hiring a frontend engineer to…
+ * // </job>
+ *
+ * // Sparse job: no location text, salary only as numbers, no description:
+ * // Location: not stated
+ * // Salary: 40–48 USD/hour
+ * // (no description)
+ *
+ * // Cut description: "…first 4000 characters… [cut]"
+ */
 export function describeJob(job: Job, uid: string, maxDescriptionChars: number): string {
   const salary = job.salary
     ? (job.salary.text ??
