@@ -29,7 +29,8 @@ describe('init: CV step', () => {
     return path;
   }
 
-  const llm = () => new FakeLLM({ text: CONVERTED });
+  const llm = () =>
+    new FakeLLM({ text: CONVERTED, model: 'claude-sonnet-5-5', providerName: 'Anthropic' });
 
   it('converts the CV, shows a summary, and saves cv.md + the CV info', async () => {
     const source = await cvSource();
@@ -45,7 +46,7 @@ describe('init: CV step', () => {
     });
     expect(ui.output).toEqual(
       expect.arrayContaining([
-        'Your CV is sent to Claude (Anthropic) to convert it to Markdown.',
+        'Your CV is sent to claude-sonnet-5-5 (Anthropic) to convert it to Markdown.',
         '✔ CV converted',
         '  Name:      Alex Example',
         '  Sections:  Experience',
@@ -65,7 +66,7 @@ describe('init: CV step', () => {
 
     expect(model.calls).toEqual([]);
     expect(ui.output).toContain('✔ CV read');
-    expect(ui.output.join('\n')).not.toContain('Claude');
+    expect(ui.output.join('\n')).not.toContain('is sent to');
   });
 
   it('asks again when the path is wrong', async () => {

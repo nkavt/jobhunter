@@ -6,7 +6,7 @@ import {
   saveConfig,
   type Config,
 } from '../../config/index.js';
-import { ClaudeAdapter, type LLMAdapter } from '../../llm/index.js';
+import { ClaudeAdapter, getConfiguredAdapterName, type LLMAdapter } from '../../llm/index.js';
 import { CancelledError, createTerminalUi, dim, type Ui } from '../../ui/index.js';
 import { SetupAbortedError, setupAi } from './ai-setup.js';
 import { importCv } from './cv-step.js';
@@ -50,7 +50,7 @@ export async function runInit(deps: InitDeps): Promise<void> {
 
 async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
   const choice = await ui.select<Step | 'all' | 'none'>({
-    message: `Jobhunter is already set up (Claude · ${existing.model}). What would you like to change?`,
+    message: `Jobhunter is already set up with ${getConfiguredAdapterName(existing)}. What would you like to change?`,
     choices: [
       { name: 'Everything', value: 'all' },
       { name: 'AI provider, key or model', value: 'ai' },

@@ -9,7 +9,7 @@ import {
   type Profile,
 } from '../../config/index.js';
 import { writeFileAtomic } from '../../config/fs.js';
-import type { LLMAdapter } from '../../llm/index.js';
+import { getAdapterName, type LLMAdapter } from '../../llm/index.js';
 import { convertCv, CvError, loadCv, summariseCv } from '../../profile/cv.js';
 import { CancelledError, dim, type Ui } from '../../ui/index.js';
 
@@ -51,7 +51,9 @@ export async function importCv(deps: CvStepDeps, profileName: string): Promise<C
       }
 
       const usesAi = cv.kind === 'pdf' || cv.kind === 'docx';
-      if (usesAi) ui.info(dim('Your CV is sent to Claude (Anthropic) to convert it to Markdown.'));
+      if (usesAi) {
+        ui.info(dim(`Your CV is sent to ${getAdapterName(deps.llm)} to convert it to Markdown.`));
+      }
       const { markdown } = await ui.task(
         usesAi ? 'Converting your CV…' : 'Reading your CV…',
         () => convertCv(cv, deps.llm),

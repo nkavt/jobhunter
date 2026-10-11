@@ -203,7 +203,9 @@ describe('jobhunter init: AI setup', () => {
 
       await runInit({ ui, ...fakeClaude() });
 
-      expect(ui.prompts[0]?.message).toContain('already set up (Claude · claude-opus-5-5)');
+      expect(ui.prompts[0]?.message).toContain(
+        'already set up with claude-opus-5-5 (Anthropic). What would you like to change?',
+      );
       expect(ui.output).toContain('Nothing changed.');
       expect(await readConfig()).toEqual(existingConfig);
     });

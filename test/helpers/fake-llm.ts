@@ -13,7 +13,7 @@ import {
   type TextResult,
 } from '../../src/llm/index.js';
 
-type Method = Exclude<keyof LLMAdapter, 'provider' | 'model'>;
+type Method = Exclude<keyof LLMAdapter, 'provider' | 'providerName' | 'model'>;
 
 export interface FakeCall {
   method: Method;
@@ -24,6 +24,7 @@ export interface FakeCall {
 
 export interface FakeLLMOptions {
   model?: string;
+  providerName?: string;
   models?: ModelInfo[];
   text?: string | ((request: TextRequest) => string);
   /** Raw (unvalidated) JSON the "model" returns; a function gets the attempt number (0, 1). */
@@ -36,11 +37,13 @@ export interface FakeLLMOptions {
 /** Deterministic stand-in for a real provider. Records every call for assertions. */
 export class FakeLLM implements LLMAdapter {
   readonly provider: Provider = 'claude';
+  readonly providerName: string;
   readonly model: string;
   readonly calls: FakeCall[] = [];
 
   constructor(private readonly options: FakeLLMOptions = {}) {
     this.model = options.model ?? 'fake-model';
+    this.providerName = options.providerName ?? 'Fake AI';
   }
 
   listModels(): Promise<ModelInfo[]> {
