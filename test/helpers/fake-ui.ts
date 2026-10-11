@@ -10,7 +10,7 @@ export const CANCEL = Symbol('cancel');
 export type DynamicAnswer = (prompt: { message: string; choices: Choice<unknown>[] }) => unknown;
 
 export interface RecordedPrompt {
-  type: 'select' | 'password' | 'confirm';
+  type: 'select' | 'input' | 'password' | 'confirm';
   message: string;
   choices?: Choice<unknown>[];
 }
@@ -24,6 +24,10 @@ const strip = (text: string) => stripVTControlCharacters(text);
 export class FakeUi implements Ui {
   readonly prompts: RecordedPrompt[] = [];
   readonly output: string[] = [];
+  /** Files opened with `editFile`. */
+  readonly edited: string[] = [];
+  /** Runs when a file is "opened in the editor", e.g. to simulate the user's changes. */
+  onEdit: (path: string) => Promise<void> = () => Promise.resolve();
   private readonly answers: unknown[];
 
   constructor(answers: unknown[]) {
@@ -52,6 +56,21 @@ export class FakeUi implements Ui {
       throw new Error(`"${String(value)}" is not an enabled choice for "${options.message}"`);
     }
     return Promise.resolve(choice.value);
+  }
+
+  input(options: { message: string; default?: string }): Promise<string> {
+    this.prompts.push({ type: 'input', message: strip(options.message) });
+    const answer = this.next('input', options.message);
+    if (answer === DEFAULT) return Promise.resolve(options.default ?? '');
+    if (typeof answer !== 'string') throw new Error('input answer must be a string');
+    return Promise.resolve(
+      answer === '' && options.default !== undefined ? options.default : answer,
+    );
+  }
+
+  async editFile(path: string): Promise<void> {
+    this.edited.push(path);
+    await this.onEdit(path);
   }
 
   password(options: {

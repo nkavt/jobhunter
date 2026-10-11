@@ -25,7 +25,7 @@ export const CvInfoSchema = z.object({
   parsedAt: z.iso.datetime(),
 });
 
-/** Facts Claude extracts from `cv.md`; never asked as questions. */
+/** Facts the AI extracts from `cv.md`; never asked as questions. */
 export const DerivedSchema = z.object({
   roles: z.array(z.string().min(1)),
   seniority: SenioritySchema,

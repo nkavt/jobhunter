@@ -8,3 +8,4 @@ export {
   type ClaudeAdapterOptions,
 } from './claude/adapter.js';
 export { createAdapter } from './create.js';
+export { getAdapterName, getConfiguredAdapterName, PROVIDER_NAMES } from './describe.js';

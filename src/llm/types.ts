@@ -70,6 +70,8 @@ export interface SearchResult<T> extends JsonResult<T> {
  */
 export interface LLMAdapter {
   readonly provider: Provider;
+  /** Company behind the provider, for messages: `Anthropic`. */
+  readonly providerName: string;
   /** Model used by the generate/search calls. */
   readonly model: string;
 

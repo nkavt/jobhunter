@@ -12,4 +12,6 @@ export default defineConfig({
   sourcemap: true,
   banner: { js: '#!/usr/bin/env node' },
   define: { __VERSION__: JSON.stringify(pkg.version) },
+  // Prompts live in src/prompts/*.md and are inlined into the bundle as strings.
+  loader: { '.md': 'text' },
 });

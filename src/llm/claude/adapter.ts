@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
+import { PROVIDER_NAMES } from '../describe.js';
 import { LLMError } from '../errors.js';
 import { generateValidated, toJsonSchema } from '../structured.js';
 import type {
@@ -37,6 +38,7 @@ type MessageParams = Anthropic.MessageCreateParamsNonStreaming;
 
 export class ClaudeAdapter implements LLMAdapter {
   readonly provider = 'claude' as const;
+  readonly providerName = PROVIDER_NAMES.claude;
   readonly model: string;
   private readonly client: Anthropic;
 

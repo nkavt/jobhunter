@@ -9,11 +9,15 @@ export interface Choice<T> {
 /** Everything commands need from the terminal; tests replace it with a scripted fake. */
 export interface Ui {
   select<T>(options: { message: string; choices: Choice<T>[]; default?: T }): Promise<T>;
+  /** Free text; an empty answer returns `default` when one is given. */
+  input(options: { message: string; default?: string }): Promise<string>;
   password(options: {
     message: string;
     validate?: (value: string) => true | string;
   }): Promise<string>;
   confirm(options: { message: string; default?: boolean }): Promise<boolean>;
+  /** Open a file in the user's editor ($VISUAL / $EDITOR) and wait until it's closed. */
+  editFile(path: string): Promise<void>;
   /** Show a spinner while `run` works; ✔ `done` on success, ✖ on failure (the error is rethrown). */
   task<T>(text: string, run: () => Promise<T>, done?: (result: T) => string): Promise<T>;
   info(message: string): void;
