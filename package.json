@@ -33,6 +33,8 @@
     "google-sheets"
   ],
   "license": "MIT",
+  "author": "Nikoloz Kavtaradze (https://nkavt.dev)",
+  "homepage": "https://nkavt.dev",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
     "@inquirer/prompts": "^8.7.3",

@@ -324,4 +324,4 @@ npm run format       # prettier
 
 ## License
 
-[MIT](LICENSE) © 2026 Nikoloz Kavtaradze
+[MIT](LICENSE) © 2026 [Nikoloz Kavtaradze](https://nkavt.dev)
