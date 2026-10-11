@@ -1,11 +1,9 @@
 import type { Command } from 'commander';
+import { registerInit } from './init/index.js';
 import { notImplemented } from './not-implemented.js';
 
 export function registerCommands(program: Command): void {
-  program
-    .command('init')
-    .description('Set up Claude, import your CV, answer a few questions and connect Google Sheets')
-    .action(notImplemented('init'));
+  registerInit(program);
 
   program
     .command('discover')

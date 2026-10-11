@@ -29,8 +29,8 @@ export interface FakeLLMOptions {
   /** Raw (unvalidated) JSON the "model" returns; a function gets the attempt number (0, 1). */
   json?: unknown;
   search?: { data: unknown; sources?: Source[] };
-  /** Make a method throw instead of answering. */
-  errors?: Partial<Record<Method, Error>>;
+  /** Make a method throw instead of answering; a function can decide per request. */
+  errors?: Partial<Record<Method, Error | ((request: unknown) => Error | undefined)>>;
 }
 
 /** Deterministic stand-in for a real provider. Records every call for assertions. */
@@ -95,7 +95,8 @@ export class FakeLLM implements LLMAdapter {
 
   private answer<R>(method: Method, request: unknown, produce: () => Promise<R>): Promise<R> {
     this.calls.push({ method, request });
-    const error = this.options.errors?.[method];
+    const configured = this.options.errors?.[method];
+    const error = typeof configured === 'function' ? configured(request) : configured;
     return error ? Promise.reject(error) : produce();
   }
 }
