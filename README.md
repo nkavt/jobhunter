@@ -10,7 +10,7 @@ AI-powered CLI that discovers job feeds matching your CV, normalises listings fr
 npm install -g jobhunter
 ```
 
-Requires Node.js 20 or newer.
+Requires Node.js 22.12 or newer.
 
 ## Commands
 
