@@ -41,7 +41,6 @@ export async function runInit(deps: InitDeps): Promise<void> {
       version: 1,
       ...ai,
       activeProfile: existing?.activeProfile ?? 'default',
-      ...(existing?.google ? { google: existing.google } : {}),
     };
     await saveConfig(config);
     ui.success(`Saved to ${configFile()}`);
@@ -60,13 +59,8 @@ export async function runInit(deps: InitDeps): Promise<void> {
   }
   if (runProfile) await updateProfile({ ui, llm }, profileName);
 
-  if (steps.has('google')) {
-    const google = await connectGoogle(deps, config.google);
-    if (google) {
-      config = { ...config, google };
-      await saveConfig(config);
-    }
-  }
+  // Google needs no config.json entry: the saved credentials + token files are the state.
+  if (steps.has('google')) await connectGoogle(deps);
 
   ui.info(dim('Coming next in init: creating your tracking sheet.'));
 }

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { connectGoogle } from '../../src/commands/init/google-step.js';
 import { runInit } from '../../src/commands/init/index.js';
-import { googleCredentialsFile, readConfig, saveConfig } from '../../src/config/index.js';
+import { readConfig, saveConfig } from '../../src/config/index.js';
 import { loadToken } from '../../src/google/index.js';
 import { CancelledError } from '../../src/ui/index.js';
 import { useMockServer } from '../helpers/anthropic-mock.js';
@@ -31,9 +31,7 @@ describe('init: Google step', () => {
     const browser = signsIn();
     const ui = new FakeUi(['connect', '/wrong/path.json', path]);
 
-    const google = await connectGoogle({ ui, openBrowser: browser.open });
-
-    expect(google).toEqual({ credentialsSource: path });
+    expect(await connectGoogle({ ui, openBrowser: browser.open })).toBe(true);
     expect(await loadToken()).toMatchObject({ email: 'alex@example.com' });
     expect(ui.output).toEqual(
       expect.arrayContaining([
@@ -51,7 +49,7 @@ describe('init: Google step', () => {
 
   it('can be skipped', async () => {
     const ui = new FakeUi(['skip']);
-    expect(await connectGoogle({ ui, openBrowser: () => undefined })).toBeUndefined();
+    expect(await connectGoogle({ ui, openBrowser: () => undefined })).toBe(false);
     expect(ui.output).toContain('Skipped. Run `jobhunter init` again to connect Google Sheets.');
   });
 
@@ -64,12 +62,7 @@ describe('init: Google step', () => {
     const browser = signsIn();
     const ui = new FakeUi([DEFAULT]);
 
-    const google = await connectGoogle(
-      { ui, openBrowser: browser.open },
-      { credentialsSource: '/saved/path.json' },
-    );
-
-    expect(google).toEqual({ credentialsSource: '/saved/path.json' });
+    expect(await connectGoogle({ ui, openBrowser: browser.open })).toBe(true);
     expect(ui.prompts[0]?.message).toBe('Google: connected as alex@example.com');
     expect(browser.visits).toHaveLength(0);
   });
@@ -82,10 +75,7 @@ describe('init: Google step', () => {
     });
     const ui = new FakeUi(['login']);
 
-    await connectGoogle(
-      { ui, openBrowser: signsIn().open },
-      { credentialsSource: '/saved/path.json' },
-    );
+    await connectGoogle({ ui, openBrowser: signsIn().open });
 
     expect(ui.prompts.map((p) => p.type)).toEqual(['select']);
     expect(forms).toHaveLength(2);
@@ -100,9 +90,7 @@ describe('init: Google step', () => {
     );
     const ui = new FakeUi(['connect', path, 'retry']);
 
-    const google = await connectGoogle({ ui, openBrowser: browser.open });
-
-    expect(google).toEqual({ credentialsSource: path });
+    expect(await connectGoogle({ ui, openBrowser: browser.open })).toBe(true);
     expect(
       ui.output.some((line) => line.includes('add your Google account under Test users')),
     ).toBe(true);
@@ -132,7 +120,7 @@ describe('init: Google step', () => {
       connect: () => new FakeLLM(),
     });
 
-    expect((await readConfig())?.google).toEqual({ credentialsSource: path });
-    expect(googleCredentialsFile()).toContain('google-credentials.json');
+    expect(await loadToken()).toMatchObject({ email: 'alex@example.com' });
+    expect(await readConfig()).not.toHaveProperty('google');
   });
 });

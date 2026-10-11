@@ -1,5 +1,3 @@
-import type { Config } from '../../config/index.js';
-import { googleCredentialsFile } from '../../config/paths.js';
 import {
   GoogleAuthError,
   importCredentials,
@@ -27,13 +25,10 @@ const SETUP_GUIDE = [
 ];
 
 /**
- * Connect Google: credentials file → browser sign-in. Returns the `google` part of config.json,
- * or `undefined` when the user skips (nothing changes).
+ * Connect Google: credentials file → browser sign-in. The saved credentials and token files are
+ * the whole state. Returns whether Jobhunter is connected afterwards.
  */
-export async function connectGoogle(
-  deps: GoogleStepDeps,
-  existing?: Config['google'],
-): Promise<Config['google'] | undefined> {
+export async function connectGoogle(deps: GoogleStepDeps): Promise<boolean> {
   const { ui } = deps;
   const [savedClient, savedToken] = await Promise.all([loadCredentials(), loadToken()]);
 
@@ -48,7 +43,7 @@ export async function connectGoogle(
       ],
       default: 'keep',
     });
-    if (choice === 'keep') return existing ?? { credentialsSource: googleCredentialsFile() };
+    if (choice === 'keep') return true;
     replaceCredentials = choice === 'credentials';
   } else {
     const choice = await ui.select<'connect' | 'skip'>({
@@ -62,23 +57,17 @@ export async function connectGoogle(
     });
     if (choice === 'skip') {
       ui.info('Skipped. Run `jobhunter init` again to connect Google Sheets.');
-      return undefined;
+      return false;
     }
   }
 
-  let client = replaceCredentials ? undefined : savedClient;
-  let credentialsSource = existing?.credentialsSource ?? googleCredentialsFile();
-  if (!client) {
-    const imported = await askForCredentials(ui);
-    client = imported.client;
-    credentialsSource = imported.path;
-  }
+  const client = (replaceCredentials ? undefined : savedClient) ?? (await askForCredentials(ui));
 
   for (;;) {
     try {
       const token = await signIn(deps, client);
       ui.success(`Connected as ${token.email ?? 'your Google account'}`);
-      return { credentialsSource };
+      return true;
     } catch (error) {
       if (!(error instanceof GoogleAuthError)) throw error;
       ui.error(error.message);
@@ -91,13 +80,13 @@ export async function connectGoogle(
       });
       if (next === 'skip') {
         ui.info('Skipped. Run `jobhunter init` again to connect Google Sheets.');
-        return undefined;
+        return false;
       }
     }
   }
 }
 
-async function askForCredentials(ui: Ui): Promise<{ client: GoogleClient; path: string }> {
+async function askForCredentials(ui: Ui): Promise<GoogleClient> {
   ui.info('');
   for (const line of SETUP_GUIDE) ui.info(line);
   ui.info('');
@@ -107,9 +96,9 @@ async function askForCredentials(ui: Ui): Promise<{ client: GoogleClient; path: 
     });
     if (!answer.trim()) throw new CancelledError();
     try {
-      const imported = await importCredentials(answer);
+      const { client } = await importCredentials(answer);
       ui.success('Credentials saved');
-      return imported;
+      return client;
     } catch (error) {
       if (!(error instanceof GoogleAuthError)) throw error;
       ui.error(error.message);

@@ -53,7 +53,6 @@ const existingConfig: Config = {
   model: 'claude-opus-5-5',
   apiKey: 'sk-ant-old-9876',
   activeProfile: 'default',
-  google: { credentialsSource: '/tmp/client.json' },
 };
 
 describe('jobhunter init: AI setup', () => {
