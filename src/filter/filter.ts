@@ -2,7 +2,6 @@ import type { Derived, Preferences } from '../config/index.js';
 import type { Job } from '../jobs/index.js';
 import type { SalaryPeriod } from '../schema/enums.js';
 import { titleKeywords, titleMatches, squash } from './keywords.js';
-import { eligibleFor } from './places.js';
 
 export interface FilterOptions {
   now: Date;
@@ -52,12 +51,8 @@ export function filterJob(job: Job, profile: FilterProfile, options: FilterOptio
     reasons.push(`work mode: ${job.workMode}`);
   }
 
-  if (job.workMode === 'remote' && preferences.remote && !job.location.worldwide) {
-    const eligible = eligibleFor(job.location.regions, preferences.remote.eligibleCountries);
-    if (eligible === false) {
-      reasons.push(`remote only in ${job.location.text ?? job.location.regions.join(', ')}`);
-    }
-  }
+  // Location limits ("EU", "EMEA", "USA timezones", "Europe + UK"…) need judgement, so they're
+  // left to the AI, which gets the user's countries and timezone with the job description.
 
   const minimum = preferences.minSalary;
   const top = job.salary?.max ?? job.salary?.min;

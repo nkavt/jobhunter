@@ -45,10 +45,6 @@ describe('filterJob', () => {
     [{ employmentType: 'part_time' as const }, 'employment type: part-time'],
     [{ workMode: 'onsite' as const }, 'work mode: onsite'],
     [
-      { location: { text: 'North America Only', regions: ['North America'] } },
-      'remote only in North America Only',
-    ],
-    [
       {
         salary: {
           min: 40000,
@@ -82,6 +78,19 @@ describe('filterJob', () => {
         profile,
         options,
       ),
+    ).toEqual([]);
+  });
+
+  it('leaves location limits to the AI', () => {
+    expect(
+      filterJob(
+        job({ location: { text: 'North America Only', regions: ['North America'] } }),
+        profile,
+        options,
+      ),
+    ).toEqual([]);
+    expect(
+      filterJob(job({ location: { text: 'USA', regions: ['USA'] } }), profile, options),
     ).toEqual([]);
   });
 
