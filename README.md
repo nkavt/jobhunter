@@ -173,6 +173,9 @@ Any step can be skipped and finished later by running `jobhunter init` again. Pr
 Finds new jobs and adds them to your sheet. Each run goes like this:
 
 1. **Fetch** the job boards: [Remotive](https://remotive.com), [Remote OK](https://remoteok.com) and [We Work Remotely](https://weworkremotely.com). A board checked in the last 6 hours is skipped, to go easy on it. If one board is down, the others still run.
+
+   More boards are coming in future versions. Also on the way: `jobhunter discover`, which lets the AI search the web for job boards and feeds that suit your profile, and `jobhunter map`, which teaches Jobhunter to read a new feed so you can add any board you like.
+
 2. **Skip jobs already in your sheet**, in any tab, including jobs you added by hand with a link, plus the same job listed on two boards.
 3. **Filter in code.** A job is ignored if:
    - its title doesn't match your roles or main technologies (any software engineer or developer title still goes through, so the AI can judge it)
