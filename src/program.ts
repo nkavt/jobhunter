@@ -5,7 +5,7 @@ import { VERSION } from './version.js';
 export function createProgram(): Command {
   const program = new Command()
     .name('jobhunter')
-    .description('Discover job feeds, normalise listings and track them in Google Sheets')
+    .description('Score remote jobs against your CV with AI and track them in a Google Sheet')
     .version(VERSION, '-v, --version');
 
   registerCommands(program);
