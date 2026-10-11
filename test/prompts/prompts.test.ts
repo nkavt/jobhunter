@@ -52,6 +52,11 @@ describe('prompt files', () => {
       .map((e) => e.name)
       .sort();
     expect(Object.keys(PROMPTS).sort()).toEqual(folders);
+    const files = entries
+      .filter((e) => e.isFile())
+      .map((e) => e.name)
+      .sort();
+    expect(files).toEqual(['index.ts', 'registry.ts', 'render.ts', 'types.ts']);
 
     for (const folder of folders) {
       expect((await readdir(`${PROMPTS_DIR}${folder}`)).sort(), folder).toEqual([
