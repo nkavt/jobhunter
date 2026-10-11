@@ -29,6 +29,17 @@ describe('title keywords', () => {
     expect(titleMatches('Software Sales Manager', keywords)).toBe(false);
   });
 
+  it('keeps software engineering roles under other names for the AI to judge', () => {
+    const keywords = titleKeywords(derived);
+    expect(titleMatches('Product Engineer', keywords)).toBe(true);
+    expect(titleMatches('Senior AI Engineer', keywords)).toBe(true);
+    expect(titleMatches('Python Developer', keywords)).toBe(true);
+    expect(titleMatches('Sales Engineer', keywords)).toBe(false);
+    expect(titleMatches('Customer Support Engineer', keywords)).toBe(false);
+    expect(titleMatches('Mechanical Engineer', keywords)).toBe(false);
+    expect(titleMatches('Engineering Manager', keywords)).toBe(false);
+  });
+
   it('lets everything through when there are no keywords', () => {
     expect(titleMatches('Anything', [])).toBe(true);
   });
