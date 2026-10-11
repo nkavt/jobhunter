@@ -6,20 +6,24 @@ import {
   saveConfig,
   type Config,
 } from '../../config/index.js';
+import { openInBrowser } from '../../google/index.js';
 import { ClaudeAdapter, getConfiguredAdapterName, type LLMAdapter } from '../../llm/index.js';
 import { CancelledError, createTerminalUi, dim, type Ui } from '../../ui/index.js';
 import { SetupAbortedError, setupAi } from './ai-setup.js';
 import { importCv } from './cv-step.js';
+import { connectGoogle } from './google-step.js';
 import { updateProfile } from './profile-step.js';
 
 export interface InitDeps {
   ui: Ui;
+  /** Opens the Google sign-in page; tests replace it with a fake browser. */
+  openBrowser: (url: string) => void;
   /** Build an adapter; the model only matters for generating (CV conversion etc.). */
   connect: (apiKey: string, model?: string) => LLMAdapter;
 }
 
-type Step = 'ai' | 'cv' | 'profile';
-const ALL_STEPS: Step[] = ['ai', 'cv', 'profile'];
+type Step = 'ai' | 'cv' | 'profile' | 'google';
+const ALL_STEPS: Step[] = ['ai', 'cv', 'profile', 'google'];
 
 export async function runInit(deps: InitDeps): Promise<void> {
   const { ui } = deps;
@@ -56,7 +60,15 @@ export async function runInit(deps: InitDeps): Promise<void> {
   }
   if (runProfile) await updateProfile({ ui, llm }, profileName);
 
-  ui.info(dim('Coming next in init: Google Sheets.'));
+  if (steps.has('google')) {
+    const google = await connectGoogle(deps, config.google);
+    if (google) {
+      config = { ...config, google };
+      await saveConfig(config);
+    }
+  }
+
+  ui.info(dim('Coming next in init: creating your tracking sheet.'));
 }
 
 async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
@@ -67,6 +79,7 @@ async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
       { name: 'AI provider, key or model', value: 'ai' },
       { name: 'CV (also updates your preferences and candidate profile)', value: 'cv' },
       { name: 'Preferences and candidate profile', value: 'profile' },
+      { name: 'Google Sheets connection', value: 'google' },
       { name: 'Nothing, exit', value: 'none' },
     ],
     default: 'none',
@@ -110,6 +123,7 @@ export function registerInit(program: Command): void {
       try {
         await runInit({
           ui,
+          openBrowser: openInBrowser,
           connect: (apiKey, model) => new ClaudeAdapter({ apiKey, ...(model ? { model } : {}) }),
         });
       } catch (error) {

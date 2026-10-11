@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { extname, resolve } from 'node:path';
+import { extname } from 'node:path';
 import mammoth from 'mammoth';
 import type { LLMAdapter, Usage } from '../llm/index.js';
 import { emptyUsage } from '../llm/index.js';
 import { renderSystemPrompt, renderUserPrompt } from '../prompts/index.js';
+import { resolveUserPath } from '../util/user-path.js';
 
 export const MAX_CV_BYTES = 10 * 1024 * 1024;
 export const SUPPORTED_CV_EXTENSIONS = ['.pdf', '.docx', '.md', '.markdown', '.txt'] as const;
@@ -31,17 +31,8 @@ export interface ConvertedCv {
   usage: Usage;
 }
 
-/**
- * Turn what the user typed or dragged into the terminal into an absolute path:
- * trims, strips surrounding quotes, unescapes `\ `, expands `~`.
- */
-export function resolveCvPath(input: string, cwd = process.cwd()): string {
-  let path = input.trim();
-  if (/^(['"]).*\1$/.test(path)) path = path.slice(1, -1);
-  path = path.replace(/\\ /g, ' ');
-  if (path === '~' || path.startsWith('~/')) path = homedir() + path.slice(1);
-  return resolve(cwd, path);
-}
+/** Resolve a CV path the user typed or dragged into the terminal. */
+export const resolveCvPath = resolveUserPath;
 
 export async function loadCv(input: string, cwd?: string): Promise<LoadedCv> {
   const path = resolveCvPath(input, cwd);

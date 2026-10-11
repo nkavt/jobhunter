@@ -165,6 +165,7 @@ describe('init: choosing what to change', () => {
     const ui = new FakeUi(['cv', '']);
 
     await runInit({
+      openBrowser: () => undefined,
       ui,
       connect: (apiKey, model) => {
         connections.push({ apiKey, ...(model ? { model } : {}) });

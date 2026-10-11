@@ -63,8 +63,8 @@ describe('jobhunter init: AI setup', () => {
   });
 
   it('saves provider, key and the chosen model after both tests pass', async () => {
-    const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, '']);
-    await runInit({ ui, ...fakeClaude() });
+    const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, '', 'skip']);
+    await runInit({ openBrowser: () => undefined, ui, ...fakeClaude() });
 
     expect(await readConfig()).toEqual({
       version: 1,
@@ -80,24 +80,28 @@ describe('jobhunter init: AI setup', () => {
   });
 
   it.skipIf(isWindows)('writes the config readable only by the user', async () => {
-    await runInit({ ui: new FakeUi(['claude', GOOD_KEY, DEFAULT, '']), ...fakeClaude() });
+    await runInit({
+      openBrowser: () => undefined,
+      ui: new FakeUi(['claude', GOOD_KEY, DEFAULT, '', 'skip']),
+      ...fakeClaude(),
+    });
     expect((await stat(configFile())).mode & 0o777).toBe(0o600);
   });
 
   it('lists Gemini as coming soon but not selectable', async () => {
-    const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, '']);
-    await runInit({ ui, ...fakeClaude() });
+    const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, '', 'skip']);
+    await runInit({ openBrowser: () => undefined, ui, ...fakeClaude() });
     expect(ui.prompts[0]?.choices).toContainEqual(
       expect.objectContaining({ value: 'gemini', disabled: 'coming soon' }),
     );
-    await expect(runInit({ ui: new FakeUi(['gemini']), ...fakeClaude() })).rejects.toThrow(
-      'not an enabled choice',
-    );
+    await expect(
+      runInit({ openBrowser: () => undefined, ui: new FakeUi(['gemini']), ...fakeClaude() }),
+    ).rejects.toThrow('not an enabled choice');
   });
 
   it('shows current models with hints and hides older ones until asked', async () => {
-    const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, '']);
-    await runInit({ ui, ...fakeClaude() });
+    const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, '', 'skip']);
+    await runInit({ openBrowser: () => undefined, ui, ...fakeClaude() });
 
     const choices = ui.prompts.find((p) => p.message === 'Model')?.choices ?? [];
     expect(choices.map((c) => c.value).slice(0, 3)).toEqual([
@@ -113,9 +117,9 @@ describe('jobhunter init: AI setup', () => {
   it('can switch to an older model via "Show older models"', async () => {
     const showOlder: DynamicAnswer = ({ choices }) =>
       choices.find((c) => c.name.includes('Show older models'))?.value;
-    const ui = new FakeUi(['claude', GOOD_KEY, showOlder, 'claude-sonnet-4-5', '']);
+    const ui = new FakeUi(['claude', GOOD_KEY, showOlder, 'claude-sonnet-4-5', '', 'skip']);
 
-    await runInit({ ui, ...fakeClaude() });
+    await runInit({ openBrowser: () => undefined, ui, ...fakeClaude() });
 
     const modelPrompts = ui.prompts.filter((p) => p.message === 'Model');
     expect(modelPrompts).toHaveLength(2);
@@ -124,9 +128,9 @@ describe('jobhunter init: AI setup', () => {
   });
 
   it('asks again after an invalid key', async () => {
-    const ui = new FakeUi(['claude', 'sk-ant-typo', GOOD_KEY, DEFAULT, '']);
+    const ui = new FakeUi(['claude', 'sk-ant-typo', GOOD_KEY, DEFAULT, '', 'skip']);
     const claude = fakeClaude();
-    await runInit({ ui, ...claude });
+    await runInit({ openBrowser: () => undefined, ui, ...claude });
 
     expect(claude.connections[0]).toBe('sk-ant-typo');
     expect(ui.output).toContain('✖ Invalid API key.');
@@ -135,7 +139,9 @@ describe('jobhunter init: AI setup', () => {
 
   it(`gives up after ${String(MAX_KEY_ATTEMPTS)} invalid keys without saving`, async () => {
     const ui = new FakeUi(['claude', 'bad-1', 'bad-2', 'bad-3']);
-    await expect(runInit({ ui, ...fakeClaude() })).rejects.toBeInstanceOf(SetupAbortedError);
+    await expect(
+      runInit({ openBrowser: () => undefined, ui, ...fakeClaude() }),
+    ).rejects.toBeInstanceOf(SetupAbortedError);
     expect(await readConfig()).toBeUndefined();
   });
 
@@ -149,9 +155,9 @@ describe('jobhunter init: AI setup', () => {
             calls++ === 0 ? new NetworkError("Couldn't reach Anthropic", 'claude') : undefined,
         },
       });
-    const ui = new FakeUi(['claude', GOOD_KEY, 'retry', DEFAULT, '']);
+    const ui = new FakeUi(['claude', GOOD_KEY, 'retry', DEFAULT, '', 'skip']);
 
-    await runInit({ ui, connect });
+    await runInit({ openBrowser: () => undefined, ui, connect });
 
     expect(ui.output).toContain("✖ Couldn't reach Anthropic");
     expect(ui.prompts.filter((p) => p.type === 'password')).toHaveLength(1);
@@ -165,9 +171,17 @@ describe('jobhunter init: AI setup', () => {
           ? new InsufficientCreditError('Your Anthropic credit balance is too low.', 'claude')
           : undefined,
     });
-    const ui = new FakeUi(['claude', GOOD_KEY, 'claude-opus-5-5', 'model', 'claude-haiku-5-5', '']);
+    const ui = new FakeUi([
+      'claude',
+      GOOD_KEY,
+      'claude-opus-5-5',
+      'model',
+      'claude-haiku-5-5',
+      '',
+      'skip',
+    ]);
 
-    await runInit({ ui, ...claude });
+    await runInit({ openBrowser: () => undefined, ui, ...claude });
 
     expect(ui.output).toContain('✖ Your Anthropic credit balance is too low.');
     expect((await readConfig())?.model).toBe('claude-haiku-5-5');
@@ -182,9 +196,9 @@ describe('jobhunter init: AI setup', () => {
         return new InsufficientCreditError('No credit', 'claude');
       },
     });
-    const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, 'key', GOOD_KEY, DEFAULT, '']);
+    const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, 'key', GOOD_KEY, DEFAULT, '', 'skip']);
 
-    await runInit({ ui, ...claude });
+    await runInit({ openBrowser: () => undefined, ui, ...claude });
 
     expect(ui.prompts.filter((p) => p.type === 'password')).toHaveLength(2);
     expect(await readConfig()).toMatchObject({ apiKey: GOOD_KEY });
@@ -192,7 +206,9 @@ describe('jobhunter init: AI setup', () => {
 
   it('saves nothing when cancelled', async () => {
     const ui = new FakeUi(['claude', CANCEL]);
-    await expect(runInit({ ui, ...fakeClaude() })).rejects.toBeInstanceOf(CancelledError);
+    await expect(
+      runInit({ openBrowser: () => undefined, ui, ...fakeClaude() }),
+    ).rejects.toBeInstanceOf(CancelledError);
     expect(await readConfig()).toBeUndefined();
   });
 
@@ -201,7 +217,7 @@ describe('jobhunter init: AI setup', () => {
       await saveConfig(existingConfig);
       const ui = new FakeUi([DEFAULT]);
 
-      await runInit({ ui, ...fakeClaude() });
+      await runInit({ openBrowser: () => undefined, ui, ...fakeClaude() });
 
       expect(ui.prompts[0]?.message).toContain(
         'already set up with claude-opus-5-5 (Anthropic). What would you like to change?',
@@ -214,7 +230,7 @@ describe('jobhunter init: AI setup', () => {
       await saveConfig({ ...existingConfig, apiKey: GOOD_KEY });
       const ui = new FakeUi(['ai', 'claude', '', DEFAULT]);
 
-      await runInit({ ui, ...fakeClaude() });
+      await runInit({ openBrowser: () => undefined, ui, ...fakeClaude() });
 
       expect(ui.prompts.find((p) => p.type === 'password')?.message).toContain(
         'Enter to keep ••••1234',
@@ -225,9 +241,9 @@ describe('jobhunter init: AI setup', () => {
     it('starts fresh when the existing config is broken', async () => {
       await mkdir(dirname(configFile()), { recursive: true });
       await writeFile(configFile(), '{ broken');
-      const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, '']);
+      const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, '', 'skip']);
 
-      await runInit({ ui, ...fakeClaude() });
+      await runInit({ openBrowser: () => undefined, ui, ...fakeClaude() });
 
       expect(ui.output.some((line) => line.startsWith('⚠ Your existing config'))).toBe(true);
       expect((await readConfig())?.apiKey).toBe(GOOD_KEY);
