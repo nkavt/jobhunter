@@ -1,0 +1,3 @@
+Score these jobs.
+
+{{jobs}}

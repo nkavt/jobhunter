@@ -4,6 +4,8 @@ import cvToMarkdownSystem from './cv-to-markdown/system.md';
 import cvToMarkdownUser from './cv-to-markdown/user.md';
 import extractCvFactsSystem from './extract-cv-facts/system.md';
 import extractCvFactsUser from './extract-cv-facts/user.md';
+import jobFitSystem from './job-fit/system.md';
+import jobFitUser from './job-fit/user.md';
 import type { PromptTemplate } from './types.js';
 
 /**
@@ -17,4 +19,5 @@ export const PROMPTS = {
   },
   'cv-to-markdown': { system: cvToMarkdownSystem, user: cvToMarkdownUser },
   'extract-cv-facts': { system: extractCvFactsSystem, user: extractCvFactsUser },
+  'job-fit': { system: jobFitSystem, user: jobFitUser },
 } as const satisfies Record<string, PromptTemplate>;
