@@ -1,11 +1,12 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { jobKey, type Job } from '../../src/jobs/index.js';
-import { APPLICATION_COLUMNS, IGNORED_COLUMNS } from '../../src/sheet/layout.js';
+import { APPLICATION_COLUMNS, IGNORED_COLUMNS, SHEET_IDS } from '../../src/sheet/layout.js';
 import {
   applicationCells,
   ignoredCells,
   isKnown,
+  rowSpan,
   SheetTracker,
   toRow,
   TrackerError,
@@ -169,6 +170,52 @@ describe('SheetTracker', () => {
     expect(appends[1]?.body.values[0]?.[IGNORED_HEADER.indexOf('Reason')]).toBe(
       'posted 45 days ago',
     );
+  });
+
+  it('gives appended rows the data-row look: status dropdown, wrapped notes, no header style', async () => {
+    await saveGoogleSession();
+    sheet([APP_HEADER], [IGNORED_HEADER]);
+    const updates: { requests: Record<string, unknown>[] }[] = [];
+    server.use(
+      http.post(`${SHEETS}/sheet-1/values/:range`, () =>
+        HttpResponse.json({ updates: { updatedRange: 'Applications!A2:N3' } }),
+      ),
+      http.post(`${SHEETS}/sheet-1:batchUpdate`, async ({ request }) => {
+        updates.push((await request.json()) as { requests: Record<string, unknown>[] });
+        return HttpResponse.json({});
+      }),
+    );
+
+    await new SheetTracker(client, 'sheet-1').addApplications([
+      { job, channel: 'Remotive', status: 'To apply', note: 'Good fit', score: 80, foundAt },
+    ]);
+
+    const requests = updates[0]?.requests ?? [];
+    const rows = { sheetId: SHEET_IDS.applications, startRowIndex: 1, endRowIndex: 3 };
+    expect(requests[0]?.repeatCell).toMatchObject({
+      range: { ...rows, startColumnIndex: 0 },
+      fields: 'userEnteredFormat',
+    });
+    const notes = APP_HEADER.indexOf('Notes');
+    expect(requests).toContainEqual({
+      repeatCell: {
+        range: { ...rows, startColumnIndex: notes, endColumnIndex: notes + 1 },
+        cell: { userEnteredFormat: { wrapStrategy: 'WRAP', verticalAlignment: 'TOP' } },
+        fields: 'userEnteredFormat.wrapStrategy,userEnteredFormat.verticalAlignment',
+      },
+    });
+    const status = APP_HEADER.indexOf('Status');
+    expect(requests.at(-1)?.setDataValidation).toMatchObject({
+      range: { ...rows, startColumnIndex: status, endColumnIndex: status + 1 },
+      rule: { condition: { type: 'ONE_OF_LIST' }, showCustomUi: true },
+    });
+  });
+
+  it('reads the written rows from the append result', () => {
+    expect(rowSpan('Applications!A2:N13')).toEqual({ start: 1, end: 13 });
+    expect(rowSpan("'Ignored'!A7:I7")).toEqual({ start: 6, end: 7 });
+    expect(rowSpan('Ignored!A7')).toEqual({ start: 6, end: 7 });
+    expect(rowSpan(undefined)).toBeUndefined();
   });
 
   it('sends nothing when there is nothing to add', async () => {

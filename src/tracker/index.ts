@@ -9,4 +9,4 @@ export {
   type IgnoredJob,
   type TrackedJob,
 } from './rows.js';
-export { SheetTracker, TrackerError, type Tracker } from './sheet.js';
+export { rowSpan, SheetTracker, TrackerError, type Tracker } from './sheet.js';
