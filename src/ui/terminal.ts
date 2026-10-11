@@ -1,4 +1,4 @@
-import { confirm, password, select } from '@inquirer/prompts';
+import { confirm, input, select } from '@inquirer/prompts';
 import { styleText } from 'node:util';
 import yoctoSpinner from 'yocto-spinner';
 import { CancelledError, type Ui } from './types.js';
@@ -13,12 +13,28 @@ async function prompt<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+/** `AI provider` → `AI provider:`; questions keep their `?`. */
+export function label(message: string): string {
+  return /[?:]$/.test(message.trimEnd()) ? message : `${message}:`;
+}
+
+const mask = (value: string): string => '*'.repeat(value.length);
+
 export function createTerminalUi(): Ui {
   return {
-    select: (options) => prompt(() => select(options)),
+    select: (options) => prompt(() => select({ ...options, message: label(options.message) })),
+    // The text prompt with a masking transformer, not inquirer's password prompt: the latter
+    // drops the space after the label until you start typing, gluing the cursor to it.
     password: ({ message, validate }) =>
-      prompt(() => password({ message, mask: '*', ...(validate ? { validate } : {}) })),
-    confirm: (options) => prompt(() => confirm(options)),
+      prompt(() =>
+        input({
+          message: label(message),
+          transformer: (value, { isFinal }) =>
+            isFinal ? styleText('cyan', mask(value)) : mask(value),
+          ...(validate ? { validate } : {}),
+        }),
+      ),
+    confirm: (options) => prompt(() => confirm({ ...options, message: label(options.message) })),
 
     async task(text, run, done) {
       const spinner = yoctoSpinner({ text }).start();

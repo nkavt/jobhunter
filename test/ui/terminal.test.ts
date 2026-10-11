@@ -6,7 +6,7 @@ const exitPromptError = Object.assign(new Error('User force closed the prompt'),
 
 vi.mock('@inquirer/prompts', () => ({
   select: vi.fn(() => Promise.reject(exitPromptError)),
-  password: vi.fn(() => Promise.resolve('sk-ant-x')),
+  input: vi.fn(() => Promise.resolve('sk-ant-x')),
   confirm: vi.fn(() => Promise.reject(new Error('boom'))),
 }));
 
@@ -17,7 +17,8 @@ vi.mock('yocto-spinner', () => ({
   },
 }));
 
-const { createTerminalUi } = await import('../../src/ui/terminal.js');
+const { createTerminalUi, label } = await import('../../src/ui/terminal.js');
+const prompts = await import('@inquirer/prompts');
 const { CancelledError } = await import('../../src/ui/types.js');
 
 describe('terminal UI', () => {
@@ -33,6 +34,21 @@ describe('terminal UI', () => {
     const ui = createTerminalUi();
     await expect(ui.confirm({ message: 'x' })).rejects.toThrow('boom');
     expect(await ui.password({ message: 'key' })).toBe('sk-ant-x');
+  });
+
+  it('adds a colon to labels but not to questions', () => {
+    expect(label('AI provider')).toBe('AI provider:');
+    expect(label('Change the model?')).toBe('Change the model?');
+    expect(label('Key:')).toBe('Key:');
+  });
+
+  it('masks the key while typing and in the final answer', async () => {
+    await createTerminalUi().password({ message: 'Anthropic API key' });
+    const config = vi.mocked(prompts.input).mock.calls[0]?.[0];
+    expect(config?.message).toBe('Anthropic API key:');
+    expect(config?.transformer?.('sk-ant', { isFinal: false })).toBe('******');
+    expect(config?.transformer?.('sk-ant', { isFinal: true })).toContain('******');
+    expect(config?.transformer?.('sk-ant', { isFinal: true })).not.toContain('sk-ant');
   });
 
   it('runs tasks and rethrows their errors', async () => {
