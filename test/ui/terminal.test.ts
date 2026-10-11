@@ -1,0 +1,68 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const exitPromptError = Object.assign(new Error('User force closed the prompt'), {
+  name: 'ExitPromptError',
+});
+
+vi.mock('@inquirer/prompts', () => ({
+  select: vi.fn(() => Promise.reject(exitPromptError)),
+  password: vi.fn(() => Promise.resolve('sk-ant-x')),
+  confirm: vi.fn(() => Promise.reject(new Error('boom'))),
+}));
+
+vi.mock('yocto-spinner', () => ({
+  default: () => {
+    const spinner = { start: () => spinner, success: vi.fn(), error: vi.fn() };
+    return spinner;
+  },
+}));
+
+const { createTerminalUi } = await import('../../src/ui/terminal.js');
+const { CancelledError } = await import('../../src/ui/types.js');
+
+describe('terminal UI', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('turns Ctrl+C in a prompt into CancelledError', async () => {
+    await expect(
+      createTerminalUi().select({ message: 'x', choices: [{ name: 'a', value: 'a' }] }),
+    ).rejects.toBeInstanceOf(CancelledError);
+  });
+
+  it('passes other prompt errors through and returns answers', async () => {
+    const ui = createTerminalUi();
+    await expect(ui.confirm({ message: 'x' })).rejects.toThrow('boom');
+    expect(await ui.password({ message: 'key' })).toBe('sk-ant-x');
+  });
+
+  it('runs tasks and rethrows their errors', async () => {
+    const ui = createTerminalUi();
+    expect(
+      await ui.task(
+        'Working…',
+        () => Promise.resolve(42),
+        (n) => `Got ${String(n)}`,
+      ),
+    ).toBe(42);
+    await expect(ui.task('Failing…', () => Promise.reject(new Error('nope')))).rejects.toThrow(
+      'nope',
+    );
+  });
+
+  it('prints status messages with symbols', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const ui = createTerminalUi();
+
+    ui.success('Saved');
+    ui.error('Failed');
+    ui.warn('Careful');
+    ui.info('Plain');
+
+    expect(String(log.mock.calls[0]?.[0])).toContain('Saved');
+    expect(String(error.mock.calls[0]?.[0])).toContain('✖');
+    expect(String(warn.mock.calls[0]?.[0])).toContain('⚠');
+    expect(log.mock.calls[1]?.[0]).toBe('Plain');
+  });
+});

@@ -35,7 +35,9 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
+    "@inquirer/prompts": "^8.7.3",
     "commander": "^15.0.0",
+    "yocto-spinner": "^1.2.2",
     "zod": "^4.6.5"
   },
   "devDependencies": {
