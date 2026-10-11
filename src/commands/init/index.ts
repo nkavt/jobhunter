@@ -13,6 +13,7 @@ import { SetupAbortedError, setupAi } from './ai-setup.js';
 import { importCv } from './cv-step.js';
 import { connectGoogle } from './google-step.js';
 import { setupSheet } from './sheet-step.js';
+import { finishInit } from './summary.js';
 import { updateProfile } from './profile-step.js';
 
 export interface InitDeps {
@@ -66,7 +67,7 @@ export async function runInit(deps: InitDeps): Promise<void> {
     await setupSheet({ ui }, profileName);
   }
 
-  ui.info(dim('Setup complete. Next: `jobhunter hunt` (coming soon).'));
+  await finishInit(ui, profileName);
 }
 
 async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
