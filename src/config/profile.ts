@@ -1,0 +1,125 @@
+import { z } from 'zod';
+import {
+  CountryCodeSchema,
+  CurrencyCodeSchema,
+  EmploymentTypeSchema,
+  SalaryPeriodSchema,
+  SenioritySchema,
+  WorkModeSchema,
+} from '../schema/enums.js';
+import { NotInitializedError } from './errors.js';
+import { readJsonFile, writeJsonFile } from './fs.js';
+import { profileFile } from './paths.js';
+
+/** Used as a directory name, so keep it to a safe charset (no path traversal). */
+export const ProfileNameSchema = z
+  .string()
+  .regex(
+    /^[a-z0-9][a-z0-9_-]{0,31}$/,
+    'profile names use lowercase letters, digits, "-" and "_" (max 32 characters)',
+  );
+
+export const CvInfoSchema = z.object({
+  sourcePath: z.string().min(1),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  parsedAt: z.iso.datetime(),
+});
+
+/** Facts Claude extracts from `cv.md`; never asked as questions. */
+export const DerivedSchema = z.object({
+  roles: z.array(z.string().min(1)),
+  seniority: SenioritySchema,
+  yearsOfExperience: z.number().nonnegative(),
+  tech: z.object({
+    primary: z.array(z.string()),
+    secondary: z.array(z.string()),
+  }),
+  domains: z.array(z.string()),
+  languages: z.array(z.string()),
+  location: z.string().optional(),
+});
+
+/** What the user wants next; answered in `init` / `jobhunter prefs`. */
+export const PreferencesSchema = z.object({
+  workModes: z.array(WorkModeSchema).min(1),
+  remote: z
+    .object({
+      eligibleCountries: z.array(CountryCodeSchema),
+      timezone: z
+        .object({
+          base: z.string().regex(/^UTC([+-]\d{1,2}(:[0-5]\d)?)?$/, 'expected e.g. "UTC+4"'),
+          toleranceHours: z.number().min(0).max(12),
+        })
+        .optional(),
+    })
+    .optional(),
+  onsite: z
+    .object({
+      cities: z.array(z.string().min(1)),
+      /** `"no"`, `"yes"` (anywhere), or only to these countries. */
+      relocation: z.union([z.literal('no'), z.literal('yes'), z.array(CountryCodeSchema).min(1)]),
+    })
+    .optional(),
+  visaSponsorshipNeeded: z.boolean(),
+  employmentTypes: z.array(EmploymentTypeSchema).min(1),
+  minSalary: z
+    .object({
+      amount: z.number().positive(),
+      currency: CurrencyCodeSchema,
+      period: SalaryPeriodSchema,
+    })
+    .optional(),
+  avoid: z
+    .object({
+      industries: z.array(z.string()).default([]),
+      companies: z.array(z.string()).default([]),
+    })
+    .optional(),
+});
+
+export const SheetLinkSchema = z.object({
+  spreadsheetId: z.string().min(1),
+  folderId: z.string().min(1).optional(),
+  /** Header mapping for a linked existing sheet; `null` = default layout. */
+  columns: z.record(z.string(), z.string()).nullable(),
+  statusMap: z.record(z.string(), z.string()).nullable(),
+});
+
+/**
+ * `profiles/<name>/profile.json`: who the user is and what they want. Filled in step by
+ * step during `init`, so everything except identity is optional.
+ */
+export const ProfileSchema = z.object({
+  version: z.literal(1),
+  name: ProfileNameSchema,
+  cv: CvInfoSchema.optional(),
+  derived: DerivedSchema.optional(),
+  preferences: PreferencesSchema.optional(),
+  /** `null` = user chose local-only tracking; missing = not set up yet. */
+  sheet: SheetLinkSchema.nullable().optional(),
+});
+
+export type CvInfo = z.infer<typeof CvInfoSchema>;
+export type Derived = z.infer<typeof DerivedSchema>;
+export type Preferences = z.infer<typeof PreferencesSchema>;
+export type SheetLink = z.infer<typeof SheetLinkSchema>;
+export type Profile = z.infer<typeof ProfileSchema>;
+
+export async function readProfile(name: string): Promise<Profile | undefined> {
+  return readJsonFile(profileFile(ProfileNameSchema.parse(name)), ProfileSchema);
+}
+
+export async function loadProfile(name: string): Promise<Profile> {
+  const profile = await readProfile(name);
+  if (!profile) {
+    throw new NotInitializedError(
+      `Profile "${name}" does not exist. Run \`jobhunter init\` first.`,
+    );
+  }
+  return profile;
+}
+
+export async function saveProfile(profile: Profile): Promise<void> {
+  const valid = ProfileSchema.parse(profile);
+  await writeJsonFile(profileFile(valid.name), valid);
+}
