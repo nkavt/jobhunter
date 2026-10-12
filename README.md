@@ -1,5 +1,11 @@
 # jobhunter
 
+[![npm version](https://img.shields.io/npm/v/jobhunter)](https://www.npmjs.com/package/jobhunter)
+[![npm downloads](https://img.shields.io/npm/dm/jobhunter)](https://www.npmjs.com/package/jobhunter)
+[![CI](https://github.com/nkavt/jobhunter/actions/workflows/ci.yml/badge.svg)](https://github.com/nkavt/jobhunter/actions/workflows/ci.yml)
+[![Node.js](https://img.shields.io/node/v/jobhunter)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
 A command-line job hunter. It reads your CV, checks remote job boards, lets an AI score every new job against your profile, and keeps everything in a tracking spreadsheet, so you don't see the same job again on the next run. The spreadsheet is a file on your computer, or a Google Sheet in your Drive if you prefer.
 
 ```
@@ -25,7 +31,7 @@ Best matches:
 - **Everything lands in a spreadsheet** with status tabs, colours and dropdowns, ready for you to track your applications. By default it's an `.xlsx` file on your computer that you open in LibreOffice or Excel. No Google account needed.
 - **Your data stays yours.** Your keys, profile and sheet live on your machine. If you choose a Google Sheet instead, Jobhunter can only see the files it created in your Drive.
 
-> 🚧 **Early version (0.1).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
+> 🚧 **Early version (0.2).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
 
 > Jobhunter works with **Claude (Anthropic)** today. **More AI providers are coming soon**, starting with Google Gemini.
 
