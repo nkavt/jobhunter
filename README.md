@@ -51,7 +51,7 @@ Best matches:
 ## Requirements
 
 - **Node.js 22.12 or newer.** Check with `node --version`. Get it from [nodejs.org](https://nodejs.org/).
-- **An Anthropic API key**, from the [Anthropic Console](https://console.anthropic.com/settings/keys). Usage is billed by Anthropic to your account. A hunt with a small model like Claude Haiku usually costs well under a dollar, and each run prints the AI tokens it used.
+- **An Anthropic API key**, from the [Anthropic Console](https://console.anthropic.com/settings/keys). Usage is billed by Anthropic to your account. The cost depends on the model you pick and how many jobs are scored; each run prints the AI tokens it used.
 - **A spreadsheet app** to open your tracking sheet. We recommend [LibreOffice](https://www.libreoffice.org/) (free and open source). Excel works too. See [Using a local file](#using-a-local-file).
 - **Optional: a Google account**, only if you'd rather keep the sheet in Google Sheets. That also needs a free Google Cloud project to sign in with ([step-by-step guide below](#setting-up-google-access)).
 - **Your CV** as PDF, DOCX, Markdown or plain text.
@@ -148,7 +148,7 @@ Sets everything up. Run it once to start. Run it again any time to change one pa
 
 **On first run** it goes through every step:
 
-1. **AI provider, key and model.** Choose Anthropic (Claude), paste your API key, and pick a model from the list your key can use. Jobhunter checks that the key and model actually work before going on. Claude Haiku is the cheapest; Sonnet costs more and is usually more thorough.
+1. **AI provider, key and model.** Choose Anthropic (Claude) (more providers are coming soon), paste your API key, and pick a model from the list your key can use. Jobhunter checks that the key and model actually work before going on.
 2. **CV.** Give the path to your CV (PDF, DOCX, MD or TXT). PDF and Word files are converted to Markdown by the AI. You see a short summary (name, roles) and can accept it, edit it in your editor, or try again.
 3. **Preferences.** A few questions the CV can't answer:
    - work mode (remote, hybrid, onsite)
