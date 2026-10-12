@@ -194,7 +194,7 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
    Ignored jobs go to the **Ignored** tab with the reason. When a job doesn't say something (no salary, say), it isn't ignored for that.
 
-4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement. Jobs go in batches of 5, four batches at a time, so a full run of 100 jobs takes about a minute.
+4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement. Jobs are sent in batches of 5, with up to four batches at a time.
 5. **Write to your sheet.** Jobs scoring at or above your cut-off (50 by default) go to **To apply**; the rest go to **Skipped**, with the note explaining why.
 6. **Print a summary:** how many jobs were found, known, ignored and scored, your 10 best matches with their notes, and how many AI tokens the run used. The last line says where your sheet is: its file path, or its link.
 
