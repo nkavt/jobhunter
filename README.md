@@ -52,7 +52,7 @@ Best matches:
 
 - **Node.js 22.12 or newer.** Check with `node --version`. Get it from [nodejs.org](https://nodejs.org/).
 - **An Anthropic API key**, from the [Anthropic Console](https://console.anthropic.com/settings/keys). Usage is billed by Anthropic to your account. A typical hunt with a small model like Claude Haiku costs a few cents.
-- **A spreadsheet app** to open your tracking sheet: [LibreOffice](https://www.libreoffice.org/) or [ONLYOFFICE](https://www.onlyoffice.com/desktop.aspx) (both free and open source), Excel, or Numbers (view only, see [Your tracking sheet](#your-tracking-sheet)).
+- **A spreadsheet app** to open your tracking sheet. We recommend [LibreOffice](https://www.libreoffice.org/) 24.8 or newer (free and open source). Excel works too. See [Using a local file](#using-a-local-file) for other apps.
 - **Optional: a Google account**, only if you'd rather keep the sheet in Google Sheets. That also needs a free Google Cloud project to sign in with ([step-by-step guide below](#setting-up-google-access)).
 - **Your CV** as PDF, DOCX, Markdown or plain text.
 
@@ -250,20 +250,21 @@ Also planned: more AI providers (Google Gemini first), using an existing spreads
 | Tab                                                                                      | What's in it                                                                                                                                                                                                         |
 | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Applications**                                                                         | Every job you're tracking, one per row: company, role, applied date, where it was found, status, last update, link, the AI's note, two columns for your own notes, and the match score. Rows are coloured by status. |
-| **To apply**, **Applied**, **Interview & Offer**, **Declined**, **Ghosted**, **Skipped** | Read-only views of Applications filtered by status. In a Google Sheet they update by themselves; in a file they're rebuilt on every `hunt`.                                                                          |
+| **To apply**, **Applied**, **Interview & Offer**, **Declined**, **Ghosted**, **Skipped** | Read-only views of Applications filtered by status and sorted by company. They update by themselves as you change statuses.                                                                                          |
 | **Ignored**                                                                              | Jobs the filters dropped, with the reason. They stay here so they aren't checked again.                                                                                                                              |
 
 **To track an application**, change its **Status** in the Applications tab with the dropdown: To apply → Applied → Interview → Offer, or Declined, Ghosted, Withdrawn or Skipped. Fill in **Applied** and **Last update** as you go. The row colour and the view tabs follow the status.
 
 A few hidden columns (Key, Source, Found) and a hidden `_meta` tab are how Jobhunter recognises jobs it has already seen. Please don't rename or delete them. You can add your own columns after the last one.
 
-**Using a local file**
+### Using a local file
 
 - **Close it before running `hunt`.** Jobhunter checks and asks you to (see [`jobhunter hunt`](#jobhunter-hunt)).
 - **Which apps:**
-  - [LibreOffice](https://www.libreoffice.org/), [ONLYOFFICE](https://www.onlyoffice.com/desktop.aspx) and Excel open it with everything working.
+  - **[LibreOffice](https://www.libreoffice.org/) 24.8 or newer** (recommended, free) and **Excel** (Microsoft 365, or 2021 and newer) have everything working, including view tabs that update as you change statuses.
+  - [ONLYOFFICE](https://www.onlyoffice.com/desktop.aspx) and older versions of LibreOffice and Excel open it too. Where the live views aren't supported, they show the jobs as of your last `hunt`.
   - **Numbers** can show it, but save your changes in one of the others. Numbers saves to its own `.numbers` format, which `hunt` can't read.
-- **What `hunt` keeps and what it rebuilds.** It keeps everything you type into Applications and Ignored: statuses, dates, notes, your own columns, rows you add. It rebuilds the formatting, dropdowns and view tabs each time. Formatting you change by hand and extra tabs you add aren't kept.
+- **What `hunt` keeps and what it rebuilds.** It keeps everything you type into Applications and Ignored: statuses, dates, notes, your own columns, rows you add. It rebuilds the formatting, dropdowns and view tab formulas each time. Formatting you change by hand and extra tabs you add aren't kept.
 - **Filtering.** Applications and Ignored have filter buttons in the header, for any filter the view tabs don't cover.
 - **On more than one computer:**
   - Put the file in a Dropbox, iCloud Drive, OneDrive, Nextcloud or Google Drive folder (choose that path in `init`). You get a backup and your sheet on every device, without setting up Google access.
