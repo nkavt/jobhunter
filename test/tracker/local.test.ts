@@ -257,7 +257,7 @@ describe('local tracking sheet', () => {
     expect(toApply).toContain('<sheetProtection');
     // Live views: the same FILTER as the Google Sheet, as an Excel dynamic array formula.
     expect(toApply).toContain(
-      '<c r="A2" t="str" cm="1"><f t="array" ref="A2:J2">IFERROR(_xlfn._xlws.SORT(_xlfn._xlws.FILTER(Applications!A2:J1002,(Applications!E2:E1002=&quot;To apply&quot;)),1,1),&quot;Nothing here yet&quot;)</f><v>Acme</v></c>',
+      '<c r="A2" t="str" cm="1"><f t="array" ref="A2:J1002">IFERROR(INDEX(_xlfn._xlws.SORT(_xlfn._xlws.FILTER(Applications!A2:J1002,(Applications!E2:E1002=&quot;To apply&quot;)),1,1),_xlfn.SEQUENCE(1001),_xlfn.SEQUENCE(1,10)),IF(_xlfn.SEQUENCE(1001)+_xlfn.SEQUENCE(1,10)=2,&quot;Nothing here yet&quot;,&quot;&quot;))</f><v>Acme</v></c>',
     );
     expect(files.get('xl/worksheets/sheet4.xml')?.toString()).toContain(
       '(Applications!E2:E1002=&quot;Interview&quot;)+(Applications!E2:E1002=&quot;Offer&quot;)',

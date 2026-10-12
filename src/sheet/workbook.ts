@@ -129,7 +129,7 @@ function viewSheet(applications: TabData, view: (typeof VIEW_TABS)[number]): She
   const lastRow = applications.rows.length + 1 + SPARE_ROWS;
   const formula = {
     text: xlsxViewFormula(statuses, columnLetter(status), lastRow),
-    spill: rows.length > 0 ? `A2:${cellRef(rows.length, header.length - 1)}` : 'A2:A2',
+    spill: `A2:${cellRef(lastRow - 1, header.length - 1)}`,
   };
   // Formats sit on the columns too, so rows the formula spills into later get them.
   const columns = header.map((name) => {
@@ -171,7 +171,8 @@ function viewSheet(applications: TabData, view: (typeof VIEW_TABS)[number]): She
 
 /**
  * The view tab's formula, in Excel's notation: the Applications rows with these statuses, sorted
- * by company, or a hint while there are none. Spreadsheet apps recalculate it as statuses change.
+ * by company, or a hint while there are none. Excel, LibreOffice (24.8+) and Google Sheets
+ * recalculate it as statuses change.
  */
 export function xlsxViewFormula(
   statuses: readonly string[],
@@ -186,7 +187,12 @@ export function xlsxViewFormula(
         `(Applications!${statusColumn}2:${statusColumn}${last}="${value.replace(/"/g, '""')}")`,
     )
     .join('+');
-  return `IFERROR(_xlfn._xlws.SORT(_xlfn._xlws.FILTER(${data},${condition}),1,1),"${EMPTY_VIEW}")`;
+  // Always the same size, padded with blanks: LibreOffice keeps an array formula at the size it
+  // was saved with, so a plain FILTER would repeat or cut off rows as statuses change.
+  const rows = `_xlfn.SEQUENCE(${String(lastRow - 1)})`;
+  const columns = `_xlfn.SEQUENCE(1,${String(VIEW_COLUMN_COUNT)})`;
+  const sorted = `_xlfn._xlws.SORT(_xlfn._xlws.FILTER(${data},${condition}),1,1)`;
+  return `IFERROR(INDEX(${sorted},${rows},${columns}),IF(${rows}+${columns}=2,"${EMPTY_VIEW}",""))`;
 }
 
 function ignoredSheet(tab: TabData): Sheet {
