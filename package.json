@@ -1,6 +1,6 @@
 {
   "name": "jobhunter",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI job hunter for your terminal: scores remote jobs against your CV and tracks them in a spreadsheet (a local .xlsx file or Google Sheets)",
   "type": "module",
   "bin": {
