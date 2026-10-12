@@ -44,6 +44,10 @@ export interface TrackerData {
 
 /** Dropdowns and colours reach this far past the last row, for rows added by hand. */
 const SPARE_ROWS = 1000;
+/** View tabs reach this far past the last Applications row, for rows added there by hand. */
+const VIEW_SPARE_ROWS = 200;
+/** Three lines of wrapped text, so most notes are readable in the view tabs. */
+const VIEW_ROW_HEIGHT = 40;
 const HEADER_STYLE: CellStyle = { bold: true, fill: HEADER_BACKGROUND };
 const DEFAULT_WIDTH = 120;
 const EMPTY_VIEW = 'Nothing here yet';
@@ -126,7 +130,7 @@ function viewSheet(applications: TabData, view: (typeof VIEW_TABS)[number]): She
     .filter((row) => statuses.includes(String(row[status] ?? '')))
     .sort((a, b) => String(a[company] ?? '').localeCompare(String(b[company] ?? '')))
     .map((row) => header.map((name) => row[applications.header.indexOf(name)] ?? ''));
-  const lastRow = applications.rows.length + 1 + SPARE_ROWS;
+  const lastRow = applications.rows.length + 1 + VIEW_SPARE_ROWS;
   const formula = {
     text: xlsxViewFormula(statuses, columnLetter(status), lastRow),
     spill: `A2:${cellRef(lastRow - 1, header.length - 1)}`,
@@ -136,25 +140,23 @@ function viewSheet(applications: TabData, view: (typeof VIEW_TABS)[number]): She
     const spec: ColumnSpec | undefined = APPLICATION_COLUMNS.find(
       (column) => column.header === name,
     );
+    // Rows are three lines tall, so everything starts at the top, next to the wrapped notes.
     const style: CellStyle = {
+      top: true,
       ...(spec?.date ? { date: true } : {}),
       ...(spec?.wrap ? { wrap: true } : {}),
     };
-    return {
-      width: spec?.width ?? DEFAULT_WIDTH,
-      ...(Object.keys(style).length ? { style } : {}),
-    };
+    return { width: spec?.width ?? DEFAULT_WIDTH, style };
   });
   const cached: Cell[][] =
     rows.length > 0
       ? rows.map((row) =>
           row.map((raw, i) => {
-            const column = columns[i];
-            const value = column?.style?.date ? dateValue(raw) : raw;
-            return column?.style ? { value, style: column.style } : { value };
+            const style = columns[i]?.style ?? {};
+            return { value: style.date ? dateValue(raw) : raw, style };
           }),
         )
-      : [[{ value: EMPTY_VIEW }]];
+      : [[{ value: EMPTY_VIEW, style: { top: true } }]];
   const first = cached[0];
   if (first?.[0]) first[0] = { ...first[0], formula };
   return {
@@ -166,6 +168,7 @@ function viewSheet(applications: TabData, view: (typeof VIEW_TABS)[number]): She
     colourRules: statusColours(header.indexOf('Status'), header.length, lastRow),
     // The formula fills the tab; typing over it would break the view.
     locked: true,
+    rowHeight: { height: VIEW_ROW_HEIGHT, from: 1, to: lastRow },
   };
 }
 

@@ -15,6 +15,8 @@ export interface CellStyle {
   date?: boolean;
   /** Wrap long text and align it to the top of the cell. */
   wrap?: boolean;
+  /** Align to the top of the cell (implied by `wrap`). */
+  top?: boolean;
   /** Blue and underlined, for links. */
   link?: boolean;
 }
@@ -69,6 +71,11 @@ export interface Sheet {
   dropdowns?: Dropdown[];
   /** Cells can't be edited (no password): for tabs that are regenerated on every run. */
   locked?: boolean;
+  /**
+   * A fixed height in points for rows `from`–`to` (0-based, end exclusive). Apps only fit a row's
+   * height to its text when it's typed in, not when a formula's result changes.
+   */
+  rowHeight?: { height: number; from: number; to: number };
 }
 
 export interface Workbook {

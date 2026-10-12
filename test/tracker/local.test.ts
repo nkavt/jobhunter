@@ -257,12 +257,16 @@ describe('local tracking sheet', () => {
     expect(toApply).toContain('<sheetProtection');
     // Live views: the same FILTER as the Google Sheet, as an Excel dynamic array formula.
     expect(toApply).toContain(
-      '<c r="A2" t="str" cm="1"><f t="array" ref="A2:J1002">IFERROR(INDEX(_xlfn._xlws.SORT(_xlfn._xlws.FILTER(Applications!A2:J1002,(Applications!E2:E1002=&quot;To apply&quot;)),1,1),_xlfn.SEQUENCE(1001),_xlfn.SEQUENCE(1,10)),IF(_xlfn.SEQUENCE(1001)+_xlfn.SEQUENCE(1,10)=2,&quot;Nothing here yet&quot;,&quot;&quot;))</f><v>Acme</v></c>',
+      't="str" cm="1"><f t="array" ref="A2:J202">IFERROR(INDEX(_xlfn._xlws.SORT(_xlfn._xlws.FILTER(Applications!A2:J202,(Applications!E2:E202=&quot;To apply&quot;)),1,1),_xlfn.SEQUENCE(201),_xlfn.SEQUENCE(1,10)),IF(_xlfn.SEQUENCE(201)+_xlfn.SEQUENCE(1,10)=2,&quot;Nothing here yet&quot;,&quot;&quot;))</f><v>Acme</v></c>',
     );
     expect(files.get('xl/worksheets/sheet4.xml')?.toString()).toContain(
-      '(Applications!E2:E1002=&quot;Interview&quot;)+(Applications!E2:E1002=&quot;Offer&quot;)',
+      '(Applications!E2:E202=&quot;Interview&quot;)+(Applications!E2:E202=&quot;Offer&quot;)',
     );
     expect(files.get('xl/metadata.xml')?.toString()).toContain('fDynamic="1"');
+    // Formula results don't resize rows, so view rows have room for wrapped notes.
+    expect(toApply).toContain('<row r="2" ht="40" customHeight="1">');
+    expect(toApply).toContain('<row r="202" ht="40" customHeight="1"></row>');
+    expect(applications).not.toContain('customHeight="1">');
     expect(files.get('[Content_Types].xml')?.toString()).toContain('/xl/metadata.xml');
     expect(toApply).toContain('<tabColor rgb="FF9972D8"/>');
     expect(ignored).toContain('sqref="A2:A1001"><formula1>&quot;To apply&quot;');

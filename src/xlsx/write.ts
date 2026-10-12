@@ -73,9 +73,13 @@ class Styles {
       ...(style?.date ? ['applyNumberFormat="1"'] : []),
       ...(font ? ['applyFont="1"'] : []),
       ...(fill ? ['applyFill="1"'] : []),
-      ...(style?.wrap ? ['applyAlignment="1"'] : []),
+      ...(style?.wrap || style?.top ? ['applyAlignment="1"'] : []),
     ];
-    const alignment = style?.wrap ? '<alignment wrapText="1" vertical="top"/>' : '';
+    const alignment = style?.wrap
+      ? '<alignment wrapText="1" vertical="top"/>'
+      : style?.top
+        ? '<alignment vertical="top"/>'
+        : '';
     this.formats.push(
       alignment ? `<xf ${attributes.join(' ')}>${alignment}</xf>` : `<xf ${attributes.join(' ')}/>`,
     );
@@ -273,7 +277,14 @@ function sheetXml(
   const hyperlinks: string[] = [];
   const width = Math.max(1, sheet.columns?.length ?? 0, ...sheet.rows.map((row) => row.length));
 
-  const rows = sheet.rows.map((row, r) => {
+  const fixed = sheet.rowHeight;
+  const rowCount = Math.max(sheet.rows.length, fixed?.to ?? 0);
+  const rows = Array.from({ length: rowCount }, (_, r) => {
+    const row = sheet.rows[r] ?? [];
+    const height =
+      fixed && r >= fixed.from && r < fixed.to
+        ? ` ht="${String(fixed.height)}" customHeight="1"`
+        : '';
     const cells = row.map((cell, c) => {
       if (!cell) return '';
       const ref = cellRef(r, c);
@@ -283,7 +294,7 @@ function sheetXml(
       }
       return cellXml(ref, cell, styles, strings);
     });
-    return `<row r="${String(r + 1)}">${cells.join('')}</row>`;
+    return `<row r="${String(r + 1)}"${height}>${cells.join('')}</row>`;
   });
 
   const frozenRows = sheet.frozen?.rows ?? 0;
