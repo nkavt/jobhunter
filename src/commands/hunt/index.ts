@@ -2,9 +2,11 @@ import { InvalidArgumentError, type Command } from 'commander';
 import { ClaudeAdapter } from '../../llm/index.js';
 import { TrackerError } from '../../tracker/index.js';
 import { CancelledError, createTerminalUi, dim } from '../../ui/index.js';
-import { DEFAULT_MAX_AI_JOBS, DEFAULT_SINCE_DAYS, HuntSetupError, runHunt } from './run.js';
+import { HuntSetupError } from './errors.js';
+import { DEFAULT_MAX_AI_JOBS, DEFAULT_SINCE_DAYS, runHunt } from './run.js';
 
-export { DEFAULT_MAX_AI_JOBS, DEFAULT_SINCE_DAYS, HuntSetupError, runHunt } from './run.js';
+export { HuntSetupError } from './errors.js';
+export { DEFAULT_MAX_AI_JOBS, DEFAULT_SINCE_DAYS, runHunt } from './run.js';
 export type { HuntDeps, HuntOptions, HuntSummary } from './run.js';
 
 const integer =
