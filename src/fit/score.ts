@@ -27,6 +27,8 @@ export interface Fit {
 
 export interface ScoreOptions {
   batchSize?: number;
+  /** Batches scored at the same time, after the first (default 4). */
+  concurrency?: number;
   maxDescriptionChars?: number;
   /** Called after each batch, e.g. to update a progress line. */
   onBatch?: (done: number, total: number) => void;
@@ -69,6 +71,10 @@ function batchSchema(uids: readonly string[]) {
 /**
  * Ask the AI how well each job fits. The system prompt (rules + candidate + preferences) is the
  * same for every batch, so it's cached; only the jobs change. Results follow the order of `jobs`.
+ *
+ * The first batch runs alone so it writes the prompt cache; the rest then run a few at a time and
+ * read it. Starting them all at once would make each one pay to write the cache, and would run
+ * into the provider's per-minute limits on smaller accounts.
  */
 export async function scoreJobs(
   jobs: readonly Job[],
@@ -86,17 +92,23 @@ export async function scoreJobs(
     minScore: String(minScoreFor(candidate.preferences)),
   });
 
-  const fits: Fit[] = [];
-  let usage = emptyUsage();
+  const batches: Job[][] = [];
   for (let start = 0; start < jobs.length; start += batchSize) {
-    const batch = jobs.slice(start, start + batchSize);
-    const uids = batch.map((_, index) => `j${String(index + 1)}`);
+    batches.push(jobs.slice(start, start + batchSize));
+  }
+
+  const results: Fit[][] = [];
+  let usage = emptyUsage();
+  let done = 0;
+  const score = async (index: number) => {
+    const batch = batches[index] ?? [];
+    const uids = batch.map((_, i) => `j${String(i + 1)}`);
     const { data, usage: batchUsage } = await llm.generateJSON({
       system,
       cacheSystem: true,
       prompt: renderUserPrompt('job-fit', {
         jobs: batch
-          .map((job, index) => describeJob(job, uids[index] ?? '', maxDescriptionChars))
+          .map((job, i) => describeJob(job, uids[i] ?? '', maxDescriptionChars))
           .join('\n\n'),
       }),
       schema: batchSchema(uids),
@@ -105,12 +117,33 @@ export async function scoreJobs(
       maxTokens: 1000 + batch.length * 500,
     });
     const byUid = new Map(data.results.map((result) => [result.uid, result]));
-    for (const uid of uids) {
+    results[index] = uids.flatMap((uid) => {
       const result = byUid.get(uid);
-      if (result) fits.push({ score: result.score, note: result.note });
-    }
+      return result ? [{ score: result.score, note: result.note }] : [];
+    });
     usage = addUsage(usage, batchUsage);
-    options.onBatch?.(Math.min(start + batchSize, jobs.length), jobs.length);
-  }
+    done += batch.length;
+    options.onBatch?.(done, jobs.length);
+  };
+
+  if (batches.length > 0) await score(0);
+  let next = 1;
+  let failed = false;
+  const worker = async () => {
+    while (!failed && next < batches.length) {
+      const index = next++;
+      try {
+        await score(index);
+      } catch (error) {
+        // Stop starting new batches; the run fails with this error.
+        failed = true;
+        throw error;
+      }
+    }
+  };
+  const workers = Math.min(Math.max(options.concurrency ?? 4, 1), batches.length - 1);
+  await Promise.all(Array.from({ length: Math.max(workers, 0) }, worker));
+
+  const fits = results.flat();
   return { fits, usage };
 }

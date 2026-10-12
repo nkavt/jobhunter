@@ -140,6 +140,85 @@ describe('scoreJobs', () => {
   });
 });
 
+describe('scoreJobs in parallel', () => {
+  /** A scorer whose calls take a while, recording how many run at once and in what order. */
+  class SlowScorer extends FakeLLM {
+    running = 0;
+    maxRunning = 0;
+    started: string[] = [];
+    constructor(
+      private readonly delayFor: (firstUid: string) => number,
+      private readonly failOn?: string,
+    ) {
+      super({
+        json: (_attempt: number, request: JsonRequest<unknown>) => ({
+          results: [...request.prompt.matchAll(/<job uid="(j\d+)">\nTitle: [^\n]* (\d+)/g)].map(
+            ([, uid, n]) => ({ uid, score: Number(n), note: `Job ${n ?? ''}.` }),
+          ),
+        }),
+      });
+    }
+
+    override async generateJSON<T>(request: JsonRequest<T>) {
+      const first = /Title: [^\n]* (\d+)/.exec(request.prompt)?.[1] ?? '';
+      this.started.push(first);
+      this.running++;
+      this.maxRunning = Math.max(this.maxRunning, this.running);
+      try {
+        await new Promise((resolve) => setTimeout(resolve, this.delayFor(first)));
+        if (first === this.failOn) throw new Error(`batch ${first} failed`);
+        return await super.generateJSON(request);
+      } finally {
+        this.running--;
+      }
+    }
+  }
+
+  const jobs = (count: number) => Array.from({ length: count }, (_, i) => job(i + 1));
+
+  it('scores the first batch alone, then a few at a time, keeping the order of the jobs', async () => {
+    // Later batches finish first, to check results still come back in job order.
+    const llm = new SlowScorer((first) => 40 - Number(first));
+    const progress: number[] = [];
+
+    const { fits } = await scoreJobs(jobs(12), candidate, llm, {
+      batchSize: 2,
+      concurrency: 3,
+      onBatch: (done) => progress.push(done),
+    });
+
+    expect(fits.map((fit) => fit.score)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(llm.maxRunning).toBe(3);
+    expect(llm.started[0]).toBe('1');
+    expect(progress).toEqual([2, 4, 6, 8, 10, 12]);
+  });
+
+  it('runs the first batch before any other, so they can use the cached prompt', async () => {
+    const llm = new SlowScorer(() => 5);
+    const order: string[] = [];
+    const original = llm.generateJSON.bind(llm);
+    llm.generateJSON = async <T>(request: JsonRequest<T>) => {
+      const first = /Title: [^\n]* (\d+)/.exec(request.prompt)?.[1] ?? '';
+      order.push(`start ${first}`);
+      const result = await original(request);
+      order.push(`end ${first}`);
+      return result;
+    };
+
+    await scoreJobs(jobs(6), candidate, llm, { batchSize: 2 });
+
+    expect(order.slice(0, 2)).toEqual(['start 1', 'end 1']);
+  });
+
+  it('stops starting batches after one fails', async () => {
+    const llm = new SlowScorer(() => 5, '3');
+    await expect(
+      scoreJobs(jobs(20), candidate, llm, { batchSize: 2, concurrency: 2 }),
+    ).rejects.toThrow('batch 3 failed');
+    expect(llm.started.length).toBeLessThan(10);
+  });
+});
+
 describe('describing jobs and preferences for the AI', () => {
   it('handles jobs without location text, salary text or description', () => {
     const text = describeJob(
