@@ -183,7 +183,9 @@ export function xlsxViewFormula(
   lastRow: number,
 ): string {
   const last = String(lastRow);
-  const data = `Applications!A2:${columnLetter(VIEW_COLUMN_COUNT - 1)}${last}`;
+  const range = `Applications!A2:${columnLetter(VIEW_COLUMN_COUNT - 1)}${last}`;
+  // Excel turns empty cells into 0 (an empty date shows as 1900-01-00); keep them empty.
+  const data = `IF(${range}="","",${range})`;
   const condition = statuses
     .map(
       (value) =>
