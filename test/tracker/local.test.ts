@@ -338,13 +338,13 @@ describe('open sheet detection', () => {
     expect(await findOpenLock(sheetPath())).toMatchObject({ by: 'Sam on sams-desktop' });
   });
 
-  it("finds Excel and ONLYOFFICE's owner files, including Excel's shortened name", async () => {
+  it("finds Excel's owner files, including its shortened name", async () => {
     await writeFile(
       join(home(), '~$jobhunter.xlsx'),
       Buffer.concat([Buffer.from([4]), Buffer.from('Alex')]),
     );
     expect(await findOpenLock(sheetPath())).toMatchObject({
-      app: 'Excel or ONLYOFFICE',
+      app: 'Excel',
       by: 'Alex',
     });
 

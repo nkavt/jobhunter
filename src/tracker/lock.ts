@@ -14,7 +14,7 @@ export interface OpenLock {
 
 /**
  * Looks for the lock files spreadsheet apps keep next to an open file: LibreOffice and
- * Collabora write `.~lock.<name>#`; Excel and ONLYOFFICE write `~$<name>`, which Excel shortens
+ * Collabora write `.~lock.<name>#`; Excel writes `~$<name>`, which it shortens
  * to `~$` + the name without its first two letters for longer names.
  * Only shows the file is open on this computer (or another one sharing the folder), never
  * on a device it's synced to.
@@ -24,7 +24,7 @@ export async function findOpenLock(path: string): Promise<OpenLock | undefined> 
   const name = basename(path);
   const candidates = [
     { file: join(dir, `.~lock.${name}#`), app: 'LibreOffice' },
-    { file: join(dir, `~$${name}`), app: 'Excel or ONLYOFFICE' },
+    { file: join(dir, `~$${name}`), app: 'Excel' },
     ...(name.length > 2 ? [{ file: join(dir, `~$${name.slice(2)}`), app: 'Excel' }] : []),
   ];
   for (const candidate of candidates) {

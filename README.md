@@ -1,6 +1,6 @@
 # jobhunter
 
-A command-line job hunter. It reads your CV, checks remote job boards, lets an AI score every new job against your profile, and keeps everything in a tracking spreadsheet, so you never see the same job twice. The spreadsheet is a file on your computer, or a Google Sheet in your Drive if you prefer.
+A command-line job hunter. It reads your CV, checks remote job boards, lets an AI score every new job against your profile, and keeps everything in a tracking spreadsheet, so you don't see the same job again on the next run. The spreadsheet is a file on your computer, or a Google Sheet in your Drive if you prefer.
 
 ```
 $ jobhunter hunt
@@ -22,7 +22,7 @@ Best matches:
 
 - **Your CV is the source of truth.** Jobhunter works out your roles, seniority and stack from it and turns them into a short candidate profile the AI uses when scoring jobs.
 - **Cheap filters first, the AI second.** Code drops jobs that clearly don't fit (wrong role, too old, wrong employment type or work mode, salary below your minimum, companies you avoid). Only the rest goes to the AI, which gives each a score from 0 to 100 and a short note.
-- **Everything lands in a spreadsheet** with status tabs, colours and dropdowns, ready for you to track your applications. By default it's an `.xlsx` file on your computer that opens in LibreOffice, ONLYOFFICE, Excel or Numbers. No Google account needed.
+- **Everything lands in a spreadsheet** with status tabs, colours and dropdowns, ready for you to track your applications. By default it's an `.xlsx` file on your computer that you open in LibreOffice or Excel. No Google account needed.
 - **Your data stays yours.** Your keys, profile and sheet live on your machine. If you choose a Google Sheet instead, Jobhunter can only see the files it created in your Drive.
 
 > 🚧 **Early version (0.1).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
@@ -51,8 +51,8 @@ Best matches:
 ## Requirements
 
 - **Node.js 22.12 or newer.** Check with `node --version`. Get it from [nodejs.org](https://nodejs.org/).
-- **An Anthropic API key**, from the [Anthropic Console](https://console.anthropic.com/settings/keys). Usage is billed by Anthropic to your account. A typical hunt with a small model like Claude Haiku costs a few cents.
-- **A spreadsheet app** to open your tracking sheet. We recommend [LibreOffice](https://www.libreoffice.org/) 24.8 or newer (free and open source). Excel works too. See [Using a local file](#using-a-local-file) for other apps.
+- **An Anthropic API key**, from the [Anthropic Console](https://console.anthropic.com/settings/keys). Usage is billed by Anthropic to your account. A hunt with a small model like Claude Haiku usually costs well under a dollar, and each run prints the AI tokens it used.
+- **A spreadsheet app** to open your tracking sheet. We recommend [LibreOffice](https://www.libreoffice.org/) (free and open source). Excel works too. See [Using a local file](#using-a-local-file).
 - **Optional: a Google account**, only if you'd rather keep the sheet in Google Sheets. That also needs a free Google Cloud project to sign in with ([step-by-step guide below](#setting-up-google-access)).
 - **Your CV** as PDF, DOCX, Markdown or plain text.
 
@@ -76,7 +76,7 @@ Then run `jobhunter --help` to check it's installed.
    jobhunter hunt
    ```
    Close the sheet first if you have it open. New jobs are added to it, and the run ends with where it is. Open it and go to the **To apply** tab to see the best matches. `jobhunter sheet --open` opens it any time.
-3. **Run `jobhunter hunt` again whenever you like**, for example once a day. Jobs already in your sheet are skipped, so you only ever see new ones.
+3. **Run `jobhunter hunt` again whenever you like**, for example once a day. Jobs already in your sheet are skipped, so each run only adds new ones.
 
 Prefer Google Sheets? First create your Google OAuth client by following [Setting up Google access](#setting-up-google-access) (about 10 minutes, once), then choose **In a Google Sheet** when `init` asks where to track jobs.
 
@@ -148,7 +148,7 @@ Sets everything up. Run it once to start. Run it again any time to change one pa
 
 **On first run** it goes through every step:
 
-1. **AI provider, key and model.** Choose Anthropic (Claude), paste your API key, and pick a model from the list your key can use. Jobhunter checks that the key and model actually work before going on. Claude Haiku is the cheapest; Sonnet scores more carefully.
+1. **AI provider, key and model.** Choose Anthropic (Claude), paste your API key, and pick a model from the list your key can use. Jobhunter checks that the key and model actually work before going on. Claude Haiku is the cheapest; Sonnet costs more and is usually more thorough.
 2. **CV.** Give the path to your CV (PDF, DOCX, MD or TXT). PDF and Word files are converted to Markdown by the AI. You see a short summary (name, roles) and can accept it, edit it in your editor, or try again.
 3. **Preferences.** A few questions the CV can't answer:
    - work mode (remote, hybrid, onsite)
@@ -184,13 +184,13 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
    More boards are coming in future versions. Also on the way: `jobhunter discover` will let the AI search the web for job boards and feeds that suit your profile. You pick the ones you want and Jobhunter learns to read them, so the next `hunt` includes them. Found a feed yourself? `jobhunter map <url>` will add that one.
 
-2. **Skip jobs already in your sheet**, in any tab, including jobs you added by hand with a link, plus the same job listed on two boards.
+2. **Skip jobs already in your sheet**, in any tab, including jobs you added by hand with a link. A job is recognised by its board and ID, or by its link. The same job posted on two boards has a different link on each, so it can show up twice.
 3. **Filter in code.** A job is ignored if:
    - its title doesn't match your roles or main technologies (any software engineer or developer title still goes through, so the AI can judge it)
    - it was posted more than 30 days ago
    - its employment type or work mode isn't one you chose
-   - its salary, in your currency, is below your minimum
-   - its company or industry is on your avoid list
+   - its salary is below your minimum (only compared when the job lists it in the same currency as your minimum; nothing is converted)
+   - its company is on your avoid list, or one of your industries to avoid appears in its title, company name or tags (Jobhunter has no industry data, so it matches words)
 
    Ignored jobs go to the **Ignored** tab with the reason. When a job doesn't say something (no salary, say), it isn't ignored for that.
 
@@ -237,7 +237,7 @@ These commands are listed in `jobhunter --help` but aren't ready yet:
 | Command                      | What it will do                                                                                                                                  |
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `jobhunter discover`         | Let the AI search the web for job boards and feeds that match your profile; pick the ones you want and Jobhunter learns to read them for `hunt`. |
-| `jobhunter sync`             | Apply the "Change status" picks from the status tabs to the Applications tab.                                                                    |
+| `jobhunter sync`             | Apply the "Change status" picks from the status tabs to the Applications tab (Google Sheets only; the local file's status tabs have no picks).   |
 | `jobhunter map <source>`     | Add a job feed you found yourself (JSON or XML): the AI works out how to read it, and it joins your boards.                                      |
 | `jobhunter convert <source>` | Convert a job feed to Jobhunter's format with its saved mapping.                                                                                 |
 
@@ -261,10 +261,9 @@ A few hidden columns (Key, Source, Found) and a hidden `_meta` tab are how Jobhu
 
 - **Close it before running `hunt`.** Jobhunter checks and asks you to (see [`jobhunter hunt`](#jobhunter-hunt)).
 - **Which apps:**
-  - **[LibreOffice](https://www.libreoffice.org/) 24.8 or newer** (recommended, free) and **Excel** (Microsoft 365, or 2021 and newer) have everything working, including view tabs that update as you change statuses.
-  - [ONLYOFFICE](https://www.onlyoffice.com/desktop.aspx) and older versions of LibreOffice and Excel open it too. Where the live views aren't supported, they show the jobs as of your last `hunt`.
-  - **Numbers** can show it, but save your changes in one of the others. Numbers saves to its own `.numbers` format, which `hunt` can't read.
-- **What `hunt` keeps and what it rebuilds.** It keeps everything you type into Applications and Ignored: statuses, dates, notes, your own columns, rows you add. It rebuilds the formatting, dropdowns and view tab formulas each time. Formatting you change by hand and extra tabs you add aren't kept.
+  - **[LibreOffice](https://www.libreoffice.org/)** (recommended, free) and **Excel** (Microsoft 365) are what we test with, including view tabs that update as you change statuses.
+  - The view tabs use FILTER, SORT and SEQUENCE, which arrived in LibreOffice 24.8 and Excel 2021. Older versions haven't been tested, so use a current one.
+- **What `hunt` keeps and what it rebuilds.** It keeps everything you type into Applications and Ignored: statuses, dates, notes, your own columns, rows you add. A formula you type is kept as its result. It rebuilds the formatting, dropdowns and view tab formulas each time. Formatting you change by hand and extra tabs you add aren't kept.
 - **Filtering.** Applications and Ignored have filter buttons in the header, for any filter the view tabs don't cover.
 - **On more than one computer:**
   - Put the file in a Dropbox, iCloud Drive, OneDrive, Nextcloud or Google Drive folder (choose that path in `init`). You get a backup and your sheet on every device, without setting up Google access.
@@ -340,15 +339,15 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 
 ## Troubleshooting
 
-**"Your Google sign-in has expired or was revoked."** Your app is probably still in "Testing" mode, where sign-ins last 7 days. Run `jobhunter init` → Google → **Sign in again**, and [publish the app](#3-configure-the-consent-screen) so it doesn't happen again.
+**"Your Google sign-in has expired or was revoked."** Your app is probably still in "Testing" mode, where sign-ins last 7 days. Run `jobhunter init` → **Tracking sheet** → **In a Google Sheet** → **Sign in again**, and [publish the app](#3-configure-the-consent-screen) so it doesn't happen again.
 
 **"Access blocked" or "has not completed the Google verification process" when signing in.** Add your Google address under **Audience → Test users** in [Google Auth Platform](https://console.cloud.google.com/auth/audience), or publish the app.
 
 **"Google Sheets API has not been used in project … or it is disabled."** Enable both [Sheets](https://console.cloud.google.com/apis/library/sheets.googleapis.com) and [Drive](https://console.cloud.google.com/apis/library/drive.googleapis.com) for the project your OAuth client belongs to. Wait a minute, then try again.
 
-**"jobhunter.xlsx is open in LibreOffice…"** Close the file and choose **It's closed now**. If nothing has it open (the app crashed, say), choose **Continue anyway**: a lock file was left next to your sheet (`.~lock.jobhunter.xlsx#` for LibreOffice, `~$…` for Excel and ONLYOFFICE), and you can delete it.
+**"jobhunter.xlsx is open in LibreOffice…"** Close the file and choose **It's closed now**. If nothing has it open (the app crashed, say), choose **Continue anyway**: a lock file was left next to your sheet (`.~lock.jobhunter.xlsx#` for LibreOffice, `~$…` for Excel), and you can delete it.
 
-**"Can't find your tracking sheet at …"** The file was moved, renamed or deleted. Run `jobhunter init` → **Tracking sheet** and give its new path. If it was deleted, restore it from `~/.cache/jobhunter/backups/`, or give a new name to start a fresh one.
+**"Can't find your tracking sheet at …"** The file was moved, renamed or deleted. Run `jobhunter init` → **Tracking sheet** and give its new path. If it was deleted, restore it from `~/.cache/jobhunter/backups/` (that copy is from before the last write, so it's missing the jobs that write added), or give a new name to start a fresh one.
 
 **"Every source was checked recently."** Each board is checked at most once every 6 hours. Use `jobhunter hunt --force` to check now.
 
@@ -361,7 +360,7 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 ## Development
 
 ```sh
-git clone <this repository>
+git clone https://github.com/nkavt/jobhunter.git
 cd jobhunter
 npm install
 npm run build        # bundle to dist/ with tsup

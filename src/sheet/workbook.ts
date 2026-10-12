@@ -1,7 +1,7 @@
 /**
  * The tracking sheet as a local .xlsx file: the same tabs, columns and colours as the Google
- * Sheet. View tabs are plain rows rebuilt on every write instead of FILTER formulas, so they look
- * right in every spreadsheet app (older LibreOffice versions and Numbers have no FILTER).
+ * Sheet. View tabs are FILTER formulas over Applications, written so Excel and LibreOffice both
+ * keep them live, with the current results saved for apps that don't recalculate.
  */
 import {
   cellRef,

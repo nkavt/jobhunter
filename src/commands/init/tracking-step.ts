@@ -25,7 +25,7 @@ export async function setupTracking(deps: TrackingStepDeps, profileName: string)
       {
         name: 'In a spreadsheet file on this computer (.xlsx)',
         value: 'local',
-        description: 'Opens in LibreOffice, ONLYOFFICE, Excel or Numbers. No Google setup needed.',
+        description: 'Open it in LibreOffice or Excel. No Google setup needed.',
       },
       {
         name: 'In a Google Sheet',
@@ -83,7 +83,7 @@ export async function resolveSheetPath(
   if (extension === '') path += '.xlsx';
   else if (extension !== '.xlsx') {
     return {
-      error: `Jobhunter keeps your sheet as an .xlsx file, which LibreOffice, ONLYOFFICE, Excel and Numbers all open. Use a name ending in .xlsx.`,
+      error: `Jobhunter keeps your sheet as an .xlsx file, which LibreOffice and Excel open. Use a name ending in .xlsx.`,
     };
   }
   return { path };

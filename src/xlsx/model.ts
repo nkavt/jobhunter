@@ -1,6 +1,6 @@
 /**
  * A spreadsheet as plain data: what the writer turns into an .xlsx file. Only the features
- * that LibreOffice, ONLYOFFICE and Excel all understand the same way.
+ * that LibreOffice and Excel both understand the same way.
  */
 
 export type CellValue = string | number;
