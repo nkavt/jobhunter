@@ -1,3 +1,4 @@
+import { access } from 'node:fs/promises';
 import type { Command } from 'commander';
 import { loadConfig, NotInitializedError, readProfile } from '../../config/index.js';
 import { openInBrowser, spreadsheetUrl } from '../../google/index.js';
@@ -5,10 +6,11 @@ import { createTerminalUi, type Ui } from '../../ui/index.js';
 
 export interface SheetDeps {
   ui: Ui;
+  /** Opens a URL in the browser, or a file in its default app. */
   openBrowser: (url: string) => void;
 }
 
-/** Print the tracking sheet's link (and open it with `open`). Returns false when there's none. */
+/** Print the tracking sheet's path or link (and open it with `open`). Returns false when there's none. */
 export async function showSheet(
   deps: SheetDeps,
   options: { open?: boolean } = {},
@@ -19,6 +21,23 @@ export async function showSheet(
     throw error;
   });
   const profile = config && (await readProfile(config.activeProfile));
+  const local = profile?.localSheet?.path;
+  if (local) {
+    if (
+      !(await access(local).then(
+        () => true,
+        () => false,
+      ))
+    ) {
+      ui.error(
+        `Can't find your tracking sheet at ${local}. Run \`jobhunter init\` to choose it again.`,
+      );
+      return false;
+    }
+    ui.info(local);
+    if (options.open) deps.openBrowser(local);
+    return true;
+  }
   if (!profile?.sheet) {
     ui.error('No tracking sheet yet. Run `jobhunter init` to create one.');
     return false;
@@ -32,8 +51,11 @@ export async function showSheet(
 export function registerSheet(program: Command): void {
   program
     .command('sheet')
-    .description('Show the link to your tracking sheet')
-    .option('-o, --open', 'open it in your browser')
+    .description('Show where your tracking sheet is')
+    .option(
+      '-o, --open',
+      'open it (in your spreadsheet app, or in your browser for a Google Sheet)',
+    )
     .action(async (flags: { open?: boolean }) => {
       const ui = createTerminalUi();
       try {

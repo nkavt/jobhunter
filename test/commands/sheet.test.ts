@@ -1,6 +1,8 @@
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { showSheet } from '../../src/commands/sheet/index.js';
-import { saveConfig, saveProfile } from '../../src/config/index.js';
+import { readProfile, saveConfig, saveProfile } from '../../src/config/index.js';
+import { createLocalSheet } from '../../src/tracker/index.js';
 import { FakeUi } from '../helpers/fake-ui.js';
 import { useTempHome } from '../helpers/temp-home.js';
 
@@ -26,7 +28,7 @@ async function setUp(sheet: boolean) {
 }
 
 describe('jobhunter sheet', () => {
-  useTempHome();
+  const home = useTempHome();
 
   it('prints the link, and opens it on request', async () => {
     await setUp(true);
@@ -39,6 +41,25 @@ describe('jobhunter sheet', () => {
 
     await showSheet({ ui, openBrowser: (url) => opened.push(url) }, { open: true });
     expect(opened).toEqual([URL]);
+  });
+
+  it('prints the local file, and opens it in its app on request', async () => {
+    await setUp(false);
+    const path = join(home(), 'jobhunter.xlsx');
+    await createLocalSheet(path, new Date());
+    const profile = await readProfile('default');
+    if (!profile) throw new Error('no profile');
+    await saveProfile({ ...profile, localSheet: { path } });
+    const opened: string[] = [];
+    const ui = new FakeUi([]);
+
+    expect(await showSheet({ ui, openBrowser: (p) => opened.push(p) }, { open: true })).toBe(true);
+    expect(ui.output).toEqual([path]);
+    expect(opened).toEqual([path]);
+
+    await saveProfile({ ...profile, localSheet: { path: join(home(), 'moved.xlsx') } });
+    expect(await showSheet({ ui, openBrowser: () => undefined })).toBe(false);
+    expect(ui.output.at(-1)).toContain("Can't find your tracking sheet");
   });
 
   it('points to init when there is no sheet or no setup at all', async () => {

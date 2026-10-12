@@ -18,7 +18,7 @@ export interface WriteOptions {
  */
 export async function writeFileAtomic(
   path: string,
-  data: string,
+  data: string | Uint8Array,
   { secret = false }: WriteOptions = {},
 ): Promise<void> {
   await mkdir(dirname(path), { recursive: true, mode: PRIVATE_DIR_MODE });

@@ -1,5 +1,6 @@
 import { InvalidArgumentError, type Command } from 'commander';
 import { ClaudeAdapter } from '../../llm/index.js';
+import { TrackerError } from '../../tracker/index.js';
 import { CancelledError, createTerminalUi, dim } from '../../ui/index.js';
 import { DEFAULT_MAX_AI_JOBS, DEFAULT_SINCE_DAYS, HuntSetupError, runHunt } from './run.js';
 
@@ -73,7 +74,8 @@ export function registerHunt(program: Command): void {
           return;
         }
         ui.error(error instanceof Error ? error.message : String(error));
-        if (!(error instanceof HuntSetupError) && error instanceof Error && error.stack) {
+        const expected = error instanceof HuntSetupError || error instanceof TrackerError;
+        if (!expected && error instanceof Error && error.stack) {
           ui.info(dim(error.stack));
         }
         process.exitCode = 1;

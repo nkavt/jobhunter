@@ -4,6 +4,10 @@
  * `_meta` tab. Pure data + request builders, so it can be tested without Google.
  */
 
+import { columnLetter } from '../xlsx/index.js';
+
+export { columnLetter };
+
 export const SCHEMA_VERSION = 1;
 
 export const STATUSES = [
@@ -58,8 +62,8 @@ export const IGNORED_COLUMNS = [
 ] as const satisfies readonly ColumnSpec[];
 
 /** Number of `Applications` columns the view tabs mirror (A–J). */
-const VIEW_COLUMN_COUNT = 10;
-const STATUS_COLUMN = 4; // E (0-based)
+export const VIEW_COLUMN_COUNT = 10;
+export const STATUS_COLUMN = 4; // E (0-based)
 
 export const VIEW_TABS = [
   { title: 'To apply', statuses: ['To apply'], tabColor: '#9972D8' },
@@ -70,7 +74,7 @@ export const VIEW_TABS = [
   { title: 'Skipped', statuses: ['Skipped'], tabColor: '#999999' },
 ] as const satisfies readonly { title: string; statuses: readonly Status[]; tabColor: string }[];
 
-const IGNORED_TAB_COLOR = '#CCCCCC';
+export const IGNORED_TAB_COLOR = '#CCCCCC';
 
 /** Fixed sheet IDs so later code can address tabs without looking them up. */
 export const SHEET_IDS = {
@@ -81,7 +85,12 @@ export const SHEET_IDS = {
 } as const;
 
 /** Row colours per status (whole row), matching the familiar job-tracker look. */
-const STATUS_STYLES: { statuses: Status[]; background: string; text?: string; bold?: boolean }[] = [
+export const STATUS_STYLES: {
+  statuses: Status[];
+  background: string;
+  text?: string;
+  bold?: boolean;
+}[] = [
   { statuses: ['To apply'], background: '#EBE1F8' },
   { statuses: ['Applied'], background: '#FFF3CC' },
   { statuses: ['Interview'], background: '#D9EAFF' },
@@ -91,8 +100,8 @@ const STATUS_STYLES: { statuses: Status[]; background: string; text?: string; bo
   { statuses: ['Withdrawn', 'Skipped'], background: '#EDEDED', text: '#666666' },
 ];
 
-const HEADER_BACKGROUND = '#F3F3F3';
-const GREY_TEXT = '#666666';
+export const HEADER_BACKGROUND = '#F3F3F3';
+export const GREY_TEXT = '#666666';
 
 export interface Rgb {
   red: number;
@@ -107,15 +116,6 @@ export function hexToRgb(hex: string): Rgb {
     green: ((value >> 8) & 255) / 255,
     blue: (value & 255) / 255,
   };
-}
-
-/** `0` → `A`, `13` → `N`, `26` → `AA`. */
-export function columnLetter(index: number): string {
-  let letter = '';
-  for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) {
-    letter = String.fromCharCode(65 + ((n - 1) % 26)) + letter;
-  }
-  return letter;
 }
 
 type Request = Record<string, unknown>;
@@ -307,7 +307,7 @@ export interface MetaInfo {
   createdAt: string;
 }
 
-const RESTORE_VALUES = ['To apply'];
+export const RESTORE_VALUES = ['To apply'];
 
 /**
  * Formatting for freshly written data rows `start`–`end` (0-based, end exclusive), found by the

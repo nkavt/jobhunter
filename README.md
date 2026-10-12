@@ -1,6 +1,6 @@
 # jobhunter
 
-A command-line job hunter. It reads your CV, checks remote job boards, lets an AI score every new job against your profile, and keeps everything in a Google Sheet in your own Drive, so you never see the same job twice.
+A command-line job hunter. It reads your CV, checks remote job boards, lets an AI score every new job against your profile, and keeps everything in a tracking spreadsheet, so you never see the same job twice. The spreadsheet is a file on your computer, or a Google Sheet in your Drive if you prefer.
 
 ```
 $ jobhunter hunt
@@ -22,8 +22,8 @@ Best matches:
 
 - **Your CV is the source of truth.** Jobhunter works out your roles, seniority and stack from it and turns them into a short candidate profile the AI uses when scoring jobs.
 - **Cheap filters first, the AI second.** Code drops jobs that clearly don't fit (wrong role, too old, wrong employment type or work mode, salary below your minimum, companies you avoid). Only the rest goes to the AI, which gives each a score from 0 to 100 and a short note.
-- **Everything lands in a Google Sheet** with status tabs, colours and dropdowns, ready for you to track your applications.
-- **Your data stays yours.** Your keys and profile live on your machine. Jobhunter can only see the files it created in your Drive.
+- **Everything lands in a spreadsheet** with status tabs, colours and dropdowns, ready for you to track your applications. By default it's an `.xlsx` file on your computer that opens in LibreOffice, ONLYOFFICE, Excel or Numbers. No Google account needed.
+- **Your data stays yours.** Your keys, profile and sheet live on your machine. If you choose a Google Sheet instead, Jobhunter can only see the files it created in your Drive.
 
 > 🚧 **Early version (0.1).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
 
@@ -52,7 +52,8 @@ Best matches:
 
 - **Node.js 22.12 or newer.** Check with `node --version`. Get it from [nodejs.org](https://nodejs.org/).
 - **An Anthropic API key**, from the [Anthropic Console](https://console.anthropic.com/settings/keys). Usage is billed by Anthropic to your account. A typical hunt with a small model like Claude Haiku costs a few cents.
-- **A Google account** for the tracking sheet, plus a free Google Cloud project to sign in with ([step-by-step guide below](#setting-up-google-access)).
+- **A spreadsheet app** to open your tracking sheet: [LibreOffice](https://www.libreoffice.org/) or [ONLYOFFICE](https://www.onlyoffice.com/desktop.aspx) (both free and open source), Excel, or Numbers (view only, see [Your tracking sheet](#your-tracking-sheet)).
+- **Optional: a Google account**, only if you'd rather keep the sheet in Google Sheets. That also needs a free Google Cloud project to sign in with ([step-by-step guide below](#setting-up-google-access)).
 - **Your CV** as PDF, DOCX, Markdown or plain text.
 
 ## Install
@@ -65,22 +66,25 @@ Then run `jobhunter --help` to check it's installed.
 
 ## Quick start
 
-1. **Create your Google OAuth client** by following [Setting up Google access](#setting-up-google-access). Do this first, because `init` asks for the file it gives you. It takes about 10 minutes, once.
-2. **Run the setup:**
+1. **Run the setup:**
    ```sh
    jobhunter init
    ```
-   It walks you through the AI key, your CV, your preferences, Google sign-in and creating the tracking sheet. When it says "You're all set. 🎉 Happy hunting! 🏹", you're done.
-3. **Go hunting:**
+   It walks you through the AI key, your CV, your preferences and creating your tracking sheet. For the sheet, press Enter to keep it in `~/Documents/jobhunter.xlsx`, or type another file or folder. When it says "You're all set. 🎉 Happy hunting! 🏹", you're done.
+2. **Go hunting:**
    ```sh
    jobhunter hunt
    ```
-   New jobs appear in your sheet, and the run ends with its link. Open the **To apply** tab to see the best matches. You can get the link again any time with `jobhunter sheet --open`.
-4. **Run `jobhunter hunt` again whenever you like**, for example once a day. Jobs already in your sheet are skipped, so you only ever see new ones.
+   Close the sheet first if you have it open. New jobs are added to it, and the run ends with where it is. Open it and go to the **To apply** tab to see the best matches. `jobhunter sheet --open` opens it any time.
+3. **Run `jobhunter hunt` again whenever you like**, for example once a day. Jobs already in your sheet are skipped, so you only ever see new ones.
+
+Prefer Google Sheets? First create your Google OAuth client by following [Setting up Google access](#setting-up-google-access) (about 10 minutes, once), then choose **In a Google Sheet** when `init` asks where to track jobs.
 
 ## Setting up Google access
 
-Jobhunter writes to a Google Sheet in your Drive. To do that, Google needs to know which app is asking. For now, every user creates their own small, free **OAuth client** in Google Cloud and gives the downloaded file to Jobhunter. Nothing gets deployed, and there's no billing.
+**Only needed if you want your tracking sheet in Google Sheets.** The default local file needs none of this.
+
+With a Google Sheet, Jobhunter writes to a spreadsheet in your Drive. To do that, Google needs to know which app is asking. For now, every user creates their own small, free **OAuth client** in Google Cloud and gives the downloaded file to Jobhunter. Nothing gets deployed, and there's no billing.
 
 > **Coming in a future version:** Jobhunter will ship with its own Google sign-in, so you won't need to create a Google Cloud project at all. Using your own OAuth client will stay available as an option for anyone who prefers it.
 
@@ -123,7 +127,7 @@ Google's guide: [Create OAuth client ID credentials for a desktop app](https://d
 
 ### 5. Give the file to Jobhunter
 
-Run `jobhunter init`. When it gets to Google, paste the path of the downloaded file. Jobhunter copies it into its own config folder, so you can delete the download afterwards. Your browser then opens Google's sign-in page. Choose your account and allow access.
+Run `jobhunter init` and choose **In a Google Sheet** when it asks where to track jobs. Then paste the path of the downloaded file. Jobhunter copies it into its own config folder, so you can delete the download afterwards. Your browser then opens Google's sign-in page. Choose your account and allow access.
 
 You may see **"Google hasn't verified this app"**. That's expected: it's your own app. Click **Continue**.
 
@@ -155,19 +159,20 @@ Sets everything up. Run it once to start. Run it again any time to change one pa
    - minimum salary (optional)
    - industries and companies to avoid (optional)
 4. **Candidate profile.** The AI writes a short profile of you from your CV and preferences. This is what it reads when scoring jobs. You can accept it, edit it in your editor, or have it written again.
-5. **Google Sheets.** Give the path to your OAuth client file ([how to get one](#setting-up-google-access)) and sign in with Google in your browser.
-6. **Tracking sheet.** Jobhunter creates the sheet in a `Jobhunter` folder in your Drive and prints its link.
+5. **Tracking sheet.** Choose where Jobhunter tracks jobs:
+   - **In a spreadsheet file on this computer** (the default). Give a file or a folder, or press Enter for `~/Documents/jobhunter.xlsx`. Missing folders are created after you confirm. If the file is already a Jobhunter sheet, it's reused with all its jobs. Any other existing file is never overwritten.
+   - **In a Google Sheet.** Give the path to your OAuth client file ([how to get one](#setting-up-google-access)) and sign in with Google in your browser. Jobhunter then creates the sheet in a `Jobhunter` folder in your Drive and prints its link.
 
 **When you're already set up**, `init` asks what you'd like to change:
 
-| Choice                                      | Use it when you want to…                                                                        |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Everything                                  | start over from step 1                                                                          |
-| AI provider, key or model                   | switch to another model, or replace your API key (press Enter to keep the saved one)            |
-| CV                                          | import an updated CV; your preferences and candidate profile are updated after it               |
-| Preferences and candidate profile           | change what you're looking for, or rewrite the profile the AI scores you by                     |
-| Google Sheets connection and tracking sheet | sign in again or with another account, use a different OAuth client file, or create a new sheet |
-| Nothing, exit                               | leave everything as it is                                                                       |
+| Choice                                      | Use it when you want to…                                                                                         |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Everything                                  | start over from step 1                                                                                           |
+| AI provider, key or model                   | switch to another model, or replace your API key (press Enter to keep the saved one)                             |
+| CV                                          | import an updated CV; your preferences and candidate profile are updated after it                                |
+| Preferences and candidate profile           | change what you're looking for, or rewrite the profile the AI scores you by                                      |
+| Tracking sheet (local file or Google Sheet) | use another file, start a fresh sheet, switch between a local file and Google Sheets, or sign in to Google again |
+| Nothing, exit                               | leave everything as it is                                                                                        |
 
 Any step can be skipped and finished later by running `jobhunter init` again. Pressing Ctrl+C cancels without saving the step you're in.
 
@@ -191,7 +196,9 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
 4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement.
 5. **Write to your sheet.** Jobs scoring at or above your cut-off (50 by default) go to **To apply**; the rest go to **Skipped**, with the note explaining why.
-6. **Print a summary:** how many jobs were found, known, ignored and scored, your 10 best matches with their notes, and how many AI tokens the run used. The last line is the link to your sheet.
+6. **Print a summary:** how many jobs were found, known, ignored and scored, your 10 best matches with their notes, and how many AI tokens the run used. The last line says where your sheet is: its file path, or its link.
+
+**If your sheet file is open.** A spreadsheet app with the file open would overwrite the new rows the next time you save (and on Windows it blocks the write), so `hunt` checks first. Before fetching anything, it asks you to close the file, then carries on. It checks again just before writing, because scoring takes a while. If you'd rather not close it then, the jobs are kept and added on your next `hunt`, so AI results you've paid for are never lost. Run from a script or cron, `hunt` doesn't wait: it stops before fetching if the file is open at the start, and keeps the jobs for later if it's opened during the run.
 
 **Options**
 
@@ -216,11 +223,11 @@ jobhunter hunt --min-score 70     # stricter: only strong matches go to To apply
 
 ### `jobhunter sheet`
 
-Prints the link to your tracking sheet. Add `-o` or `--open` to open it in your browser.
+Prints where your tracking sheet is: the path of your file, or the link to your Google Sheet. Add `-o` or `--open` to open it in your spreadsheet app (or, for a Google Sheet, your browser).
 
 ```sh
-jobhunter sheet          # print the link
-jobhunter sheet --open   # open it in the browser
+jobhunter sheet          # print the path or link
+jobhunter sheet --open   # open it
 ```
 
 ### Coming soon
@@ -238,17 +245,30 @@ Also planned: more AI providers (Google Gemini first), using an existing spreads
 
 ## Your tracking sheet
 
-`init` creates a spreadsheet called **Jobhunter** in a `Jobhunter` folder in your Drive.
+`init` creates it as an `.xlsx` file where you chose, or as a spreadsheet called **Jobhunter** in a `Jobhunter` folder in your Drive. Both have the same tabs:
 
 | Tab                                                                                      | What's in it                                                                                                                                                                                                         |
 | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Applications**                                                                         | Every job you're tracking, one per row: company, role, applied date, where it was found, status, last update, link, the AI's note, two columns for your own notes, and the match score. Rows are coloured by status. |
-| **To apply**, **Applied**, **Interview & Offer**, **Declined**, **Ghosted**, **Skipped** | Read-only views of Applications filtered by status. They update by themselves.                                                                                                                                       |
+| **To apply**, **Applied**, **Interview & Offer**, **Declined**, **Ghosted**, **Skipped** | Read-only views of Applications filtered by status. In a Google Sheet they update by themselves; in a file they're rebuilt on every `hunt`.                                                                          |
 | **Ignored**                                                                              | Jobs the filters dropped, with the reason. They stay here so they aren't checked again.                                                                                                                              |
 
 **To track an application**, change its **Status** in the Applications tab with the dropdown: To apply → Applied → Interview → Offer, or Declined, Ghosted, Withdrawn or Skipped. Fill in **Applied** and **Last update** as you go. The row colour and the view tabs follow the status.
 
 A few hidden columns (Key, Source, Found) and a hidden `_meta` tab are how Jobhunter recognises jobs it has already seen. Please don't rename or delete them. You can add your own columns after the last one.
+
+**Using a local file**
+
+- **Close it before running `hunt`.** Jobhunter checks and asks you to (see [`jobhunter hunt`](#jobhunter-hunt)).
+- **Which apps:**
+  - [LibreOffice](https://www.libreoffice.org/), [ONLYOFFICE](https://www.onlyoffice.com/desktop.aspx) and Excel open it with everything working.
+  - **Numbers** can show it, but save your changes in one of the others. Numbers saves to its own `.numbers` format, which `hunt` can't read.
+- **What `hunt` keeps and what it rebuilds.** It keeps everything you type into Applications and Ignored: statuses, dates, notes, your own columns, rows you add. It rebuilds the formatting, dropdowns and view tabs each time. Formatting you change by hand and extra tabs you add aren't kept.
+- **Filtering.** Applications and Ignored have filter buttons in the header, for any filter the view tabs don't cover.
+- **On more than one computer:**
+  - Put the file in a Dropbox, iCloud Drive, OneDrive, Nextcloud or Google Drive folder (choose that path in `init`). You get a backup and your sheet on every device, without setting up Google access.
+  - Edit it on one device at a time. Jobhunter can only tell the file is open on the computer it runs on.
+- **Backup.** Before each write, the previous version is copied to `~/.cache/jobhunter/backups/`.
 
 ## Common tasks
 
@@ -262,13 +282,22 @@ A few hidden columns (Key, Source, Found) and a hidden `_meta` tab are how Jobhu
 
 **Change the To apply cut-off for good.** Use `--min-score` for a single run. To change the default of 50, add `"minScore": 70` (any number from 0 to 100) inside `"preferences"` in your `profile.json`.
 
-**Sign in again, or switch Google accounts.** Run `jobhunter init` → **Google Sheets connection and tracking sheet** → **Sign in again**.
+**Sign in again, or switch Google accounts.** Run `jobhunter init` → **Tracking sheet** → **In a Google Sheet** → **Sign in again**.
 
 **Use a different OAuth client file.** Same menu → **Use a different credentials file**.
 
 **Find your sheet.** Run `jobhunter sheet --open`.
 
-**Start with a fresh sheet.** Run `jobhunter init` → **Google Sheets connection and tracking sheet** → **Keep it** for the connection → **Create a new one** for the sheet. The old sheet stays in your Drive until you delete it. Because the new sheet is empty, the next `hunt` treats every listed job as new and scores it again. Add `--force` if the boards were checked in the last 6 hours.
+**Move or rename your sheet file.** Move it, then run `jobhunter init` → **Tracking sheet** → **In a spreadsheet file on this computer** and give the new path. Jobhunter recognises it and keeps its jobs.
+
+**Switch between a local file and Google Sheets.** Run `jobhunter init` → **Tracking sheet** and choose the other one. Jobs aren't copied between them yet.
+
+**Start with a fresh sheet.**
+
+- **Local file:** run `jobhunter init` → **Tracking sheet** → **In a spreadsheet file on this computer** and give a new file name.
+- **Google Sheet:** choose **In a Google Sheet** → **Keep it** for the connection → **Create a new one** for the sheet.
+
+The old sheet stays where it is until you delete it. Because the new sheet is empty, the next `hunt` treats every listed job as new and scores it again. Add `--force` if the boards were checked in the last 6 hours.
 
 **Have a job checked again.** Delete its row from Applications or Ignored. The next `hunt` (with `--force`, if the boards were checked recently) will treat it as new.
 
@@ -281,29 +310,30 @@ npm uninstall -g jobhunter
 rm -rf ~/.config/jobhunter ~/.cache/jobhunter
 ```
 
-Then remove Google access as above. Your tracking sheet stays in your Drive.
+If you used Google, remove its access as above. Your tracking sheet stays where it is: on your computer or in your Drive.
 
 ## Where your data lives
 
 Everything is stored on your machine, in `~/.config/jobhunter` (or `$XDG_CONFIG_HOME/jobhunter`):
 
-| File                               | What it holds                                                      |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `config.json`                      | AI provider, model and API key                                     |
-| `google-credentials.json`          | your Google OAuth client (a copy of the file you downloaded)       |
-| `google-token.json`                | your Google sign-in                                                |
-| `profiles/default/profile.json`    | your preferences, facts from your CV, and your tracking sheet's ID |
-| `profiles/default/cv.md`           | your CV as Markdown                                                |
-| `profiles/default/instructions.md` | your candidate profile, the text the AI scores jobs by             |
+| File                               | What it holds                                                              |
+| ---------------------------------- | -------------------------------------------------------------------------- |
+| `config.json`                      | AI provider, model and API key                                             |
+| `google-credentials.json`          | your Google OAuth client (a copy of the file you downloaded)               |
+| `google-token.json`                | your Google sign-in                                                        |
+| `profiles/default/profile.json`    | your preferences, facts from your CV, and where your tracking sheet is     |
+| `profiles/default/pending.json`    | jobs found while your sheet file was open, until the next `hunt` adds them |
+| `profiles/default/cv.md`           | your CV as Markdown                                                        |
+| `profiles/default/instructions.md` | your candidate profile, the text the AI scores jobs by                     |
 
-Files holding keys or tokens are readable only by you (mode 600), and Jobhunter warns you if their permissions get looser. When each board was last checked is kept in `~/.cache/jobhunter/sources.json`. Deleting it just makes the next `hunt` check every board.
+Files holding keys or tokens are readable only by you (mode 600), and Jobhunter warns you if their permissions get looser. When each board was last checked is kept in `~/.cache/jobhunter/sources.json`. Deleting it just makes the next `hunt` check every board. The previous version of a local sheet is kept in `~/.cache/jobhunter/backups/`.
 
 Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for testing).
 
 ## Privacy
 
 - **Anthropic** receives your CV when it's converted (PDF and DOCX only) and when your profile is written. On each `hunt` it also receives your candidate profile, CV and preferences along with the jobs being scored. See [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
-- **Google** stores your tracking sheet in your Drive. Jobhunter can only reach the files it created.
+- **Your tracking sheet** stays on your computer when it's a local file. With a Google Sheet, **Google** stores it in your Drive, and Jobhunter can only reach the files it created.
 - **Job boards** are fetched anonymously. Nothing about you is sent to them.
 - Jobhunter itself has no server and collects nothing.
 
@@ -314,6 +344,10 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 **"Access blocked" or "has not completed the Google verification process" when signing in.** Add your Google address under **Audience → Test users** in [Google Auth Platform](https://console.cloud.google.com/auth/audience), or publish the app.
 
 **"Google Sheets API has not been used in project … or it is disabled."** Enable both [Sheets](https://console.cloud.google.com/apis/library/sheets.googleapis.com) and [Drive](https://console.cloud.google.com/apis/library/drive.googleapis.com) for the project your OAuth client belongs to. Wait a minute, then try again.
+
+**"jobhunter.xlsx is open in LibreOffice…"** Close the file and choose **It's closed now**. If nothing has it open (the app crashed, say), choose **Continue anyway**: a lock file was left next to your sheet (`.~lock.jobhunter.xlsx#` for LibreOffice, `~$…` for Excel and ONLYOFFICE), and you can delete it.
+
+**"Can't find your tracking sheet at …"** The file was moved, renamed or deleted. Run `jobhunter init` → **Tracking sheet** and give its new path. If it was deleted, restore it from `~/.cache/jobhunter/backups/`, or give a new name to start a fresh one.
 
 **"Every source was checked recently."** Each board is checked at most once every 6 hours. Use `jobhunter hunt --force` to check now.
 
