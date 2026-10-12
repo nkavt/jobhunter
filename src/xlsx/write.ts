@@ -9,6 +9,13 @@ const CONTENT = 'application/vnd.openxmlformats-officedocument.spreadsheetml';
 /** The longest text a cell can hold in Excel. */
 const MAX_TEXT = 32767;
 const DATE_FORMAT_ID = 164;
+/** Marks formulas as dynamic arrays, so Excel spills them instead of showing `@`. */
+const METADATA_XML =
+  `<metadata xmlns="${NS}" xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray">` +
+  '<metadataTypes count="1"><metadataType name="XLDAPR" minSupportedVersion="120000" copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" clearFormats="1" clearComments="1" assign="1" coerce="1" cellMeta="1"/></metadataTypes>' +
+  '<futureMetadata name="XLDAPR" count="1"><bk><extLst><ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}"><xda:dynamicArrayProperties fDynamic="1" fCollapsed="0"/></ext></extLst></bk></futureMetadata>' +
+  '<cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata>' +
+  '</metadata>';
 
 /** `0` → `A`, `13` → `N`, `26` → `AA`. */
 export function columnLetter(index: number): string {
@@ -187,6 +194,9 @@ export function writeWorkbook(workbook: Workbook): Buffer {
   });
 
   const count = workbook.sheets.length;
+  const dynamic = workbook.sheets.some((sheet) =>
+    sheet.rows.some((row) => row.some((cell) => cell?.formula)),
+  );
   const workbookXml =
     `${XML_HEAD}<workbook xmlns="${NS}" xmlns:r="${REL_NS}">` +
     '<bookViews><workbookView activeTab="0"/></bookViews>' +
@@ -201,6 +211,9 @@ export function writeWorkbook(workbook: Workbook): Buffer {
     })),
     { id: `rId${String(count + 1)}`, type: `${REL_NS}/styles`, target: 'styles.xml' },
     { id: `rId${String(count + 2)}`, type: `${REL_NS}/sharedStrings`, target: 'sharedStrings.xml' },
+    ...(dynamic
+      ? [{ id: `rId${String(count + 3)}`, type: `${REL_NS}/sheetMetadata`, target: 'metadata.xml' }]
+      : []),
   ]);
   const contentTypes =
     `${XML_HEAD}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">` +
@@ -215,6 +228,9 @@ export function writeWorkbook(workbook: Workbook): Buffer {
       .join('') +
     `<Override PartName="/xl/styles.xml" ContentType="${CONTENT}.styles+xml"/>` +
     `<Override PartName="/xl/sharedStrings.xml" ContentType="${CONTENT}.sharedStrings+xml"/>` +
+    (dynamic
+      ? `<Override PartName="/xl/metadata.xml" ContentType="${CONTENT}.sheetMetadata+xml"/>`
+      : '') +
     '</Types>';
 
   return writeZip([
@@ -233,6 +249,7 @@ export function writeWorkbook(workbook: Workbook): Buffer {
     // Written last: cells register their styles and strings while their sheets are built.
     { name: 'xl/styles.xml', data: Buffer.from(styles.xml()) },
     { name: 'xl/sharedStrings.xml', data: Buffer.from(strings.xml()) },
+    ...(dynamic ? [{ name: 'xl/metadata.xml', data: Buffer.from(XML_HEAD + METADATA_XML) }] : []),
   ]);
 }
 
@@ -285,7 +302,7 @@ function sheetXml(
     ? `<cols>${sheet.columns
         .map(
           (column, i) =>
-            `<col min="${String(i + 1)}" max="${String(i + 1)}" width="${(column.width / 7).toFixed(2)}" customWidth="1"${column.hidden ? ' hidden="1"' : ''}/>`,
+            `<col min="${String(i + 1)}" max="${String(i + 1)}" width="${(column.width / 7).toFixed(2)}"${column.style ? ` style="${String(styles.cell(column.style))}"` : ''} customWidth="1"${column.hidden ? ' hidden="1"' : ''}/>`,
         )
         .join('')}</cols>`
     : '';
@@ -323,6 +340,12 @@ function sheetXml(
 function cellXml(ref: string, cell: Cell, styles: Styles, strings: SharedStrings): string {
   const style = styles.cell(cell.style);
   const s = style ? ` s="${String(style)}"` : '';
+  if (cell.formula) {
+    const f = `<f t="array" ref="${cell.formula.spill}">${escapeXml(cell.formula.text)}</f>`;
+    const number = typeof cell.value === 'number' && Number.isFinite(cell.value);
+    const type = number ? '' : ' t="str"';
+    return `<c r="${ref}"${s}${type} cm="1">${f}<v>${escapeXml(String(cell.value))}</v></c>`;
+  }
   if (typeof cell.value === 'number' && Number.isFinite(cell.value)) {
     return `<c r="${ref}"${s}><v>${String(cell.value)}</v></c>`;
   }

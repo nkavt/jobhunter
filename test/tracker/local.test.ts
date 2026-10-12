@@ -255,6 +255,15 @@ describe('local tracking sheet', () => {
     expect(applications).toContain('<hyperlink ref="G2"');
     expect(applications).not.toContain('sheetProtection');
     expect(toApply).toContain('<sheetProtection');
+    // Live views: the same FILTER as the Google Sheet, as an Excel dynamic array formula.
+    expect(toApply).toContain(
+      '<c r="A2" t="str" cm="1"><f t="array" ref="A2:J2">IFERROR(_xlfn._xlws.SORT(_xlfn._xlws.FILTER(Applications!A2:J1002,(Applications!E2:E1002=&quot;To apply&quot;)),1,1),&quot;Nothing here yet&quot;)</f><v>Acme</v></c>',
+    );
+    expect(files.get('xl/worksheets/sheet4.xml')?.toString()).toContain(
+      '(Applications!E2:E1002=&quot;Interview&quot;)+(Applications!E2:E1002=&quot;Offer&quot;)',
+    );
+    expect(files.get('xl/metadata.xml')?.toString()).toContain('fDynamic="1"');
+    expect(files.get('[Content_Types].xml')?.toString()).toContain('/xl/metadata.xml');
     expect(toApply).toContain('<tabColor rgb="FF9972D8"/>');
     expect(ignored).toContain('sqref="A2:A1001"><formula1>&quot;To apply&quot;');
     const styles = files.get('xl/styles.xml')?.toString() ?? '';

@@ -20,16 +20,25 @@ export interface CellStyle {
 }
 
 export interface Cell {
+  /** For a formula cell: its last result, shown by apps that don't recalculate. */
   value: CellValue;
   style?: CellStyle;
   /** An http(s) URL the cell links to. */
   link?: string;
+  /**
+   * A formula whose result spills over a range (FILTER, SORT…), written as Excel's dynamic array
+   * formula. Use Excel's names for newer functions (`_xlfn._xlws.FILTER`). The cells of `spill`
+   * after this one hold the last results.
+   */
+  formula?: { text: string; spill: string };
 }
 
 export interface Column {
   /** Width in pixels, as Google Sheets measures it. */
   width: number;
   hidden?: boolean;
+  /** Look of empty cells in the column, e.g. cells a formula spills into later. */
+  style?: CellStyle;
 }
 
 /** Colours whole rows when `formula` (written for the range's first row) is true. */

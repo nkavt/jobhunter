@@ -121,26 +121,72 @@ function viewSheet(applications: TabData, view: (typeof VIEW_TABS)[number]): She
   const status = applications.header.indexOf('Status');
   const company = applications.header.indexOf('Company');
   const statuses: readonly string[] = view.statuses;
+  // What the formula returns right now: shown until the app recalculates, and by apps that can't.
   const rows = applications.rows
     .filter((row) => statuses.includes(String(row[status] ?? '')))
     .sort((a, b) => String(a[company] ?? '').localeCompare(String(b[company] ?? '')))
     .map((row) => header.map((name) => row[applications.header.indexOf(name)] ?? ''));
-  const viewStatus = header.indexOf('Status');
+  const lastRow = applications.rows.length + 1 + SPARE_ROWS;
+  const formula = {
+    text: xlsxViewFormula(statuses, columnLetter(status), lastRow),
+    spill: rows.length > 0 ? `A2:${cellRef(rows.length, header.length - 1)}` : 'A2:A2',
+  };
+  // Formats sit on the columns too, so rows the formula spills into later get them.
+  const columns = header.map((name) => {
+    const spec: ColumnSpec | undefined = APPLICATION_COLUMNS.find(
+      (column) => column.header === name,
+    );
+    const style: CellStyle = {
+      ...(spec?.date ? { date: true } : {}),
+      ...(spec?.wrap ? { wrap: true } : {}),
+    };
+    return {
+      width: spec?.width ?? DEFAULT_WIDTH,
+      ...(Object.keys(style).length ? { style } : {}),
+    };
+  });
+  const cached: Cell[][] =
+    rows.length > 0
+      ? rows.map((row) =>
+          row.map((raw, i) => {
+            const column = columns[i];
+            const value = column?.style?.date ? dateValue(raw) : raw;
+            return column?.style ? { value, style: column.style } : { value };
+          }),
+        )
+      : [[{ value: EMPTY_VIEW }]];
+  const first = cached[0];
+  if (first?.[0]) first[0] = { ...first[0], formula };
   return {
     name: view.title,
-    rows: [
-      headerRow(header),
-      ...(rows.length > 0
-        ? rows.map((row) => dataRow(header, row, APPLICATION_COLUMNS))
-        : [[{ value: EMPTY_VIEW, style: { color: GREY_TEXT } }]]),
-    ],
-    columns: columnsFor(header, APPLICATION_COLUMNS),
+    rows: [headerRow(header), ...cached],
+    columns,
     frozen: { rows: 1, columns: 1 },
     tabColor: view.tabColor,
-    colourRules: statusColours(viewStatus, header.length, rows.length + 1),
-    // Rebuilt from Applications on every run, so edits here would be lost.
+    colourRules: statusColours(header.indexOf('Status'), header.length, lastRow),
+    // The formula fills the tab; typing over it would break the view.
     locked: true,
   };
+}
+
+/**
+ * The view tab's formula, in Excel's notation: the Applications rows with these statuses, sorted
+ * by company, or a hint while there are none. Spreadsheet apps recalculate it as statuses change.
+ */
+export function xlsxViewFormula(
+  statuses: readonly string[],
+  statusColumn: string,
+  lastRow: number,
+): string {
+  const last = String(lastRow);
+  const data = `Applications!A2:${columnLetter(VIEW_COLUMN_COUNT - 1)}${last}`;
+  const condition = statuses
+    .map(
+      (value) =>
+        `(Applications!${statusColumn}2:${statusColumn}${last}="${value.replace(/"/g, '""')}")`,
+    )
+    .join('+');
+  return `IFERROR(_xlfn._xlws.SORT(_xlfn._xlws.FILTER(${data},${condition}),1,1),"${EMPTY_VIEW}")`;
 }
 
 function ignoredSheet(tab: TabData): Sheet {
