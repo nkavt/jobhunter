@@ -1,6 +1,15 @@
+import { mkdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { HuntSetupError, runHunt, type HuntDeps } from '../../src/commands/hunt/index.js';
-import { cvFile, instructionsFile, saveConfig, saveProfile } from '../../src/config/index.js';
+import {
+  cvFile,
+  instructionsFile,
+  pendingFile,
+  readProfile,
+  saveConfig,
+  saveProfile,
+} from '../../src/config/index.js';
 import { writeFileAtomic } from '../../src/config/fs.js';
 import type { JsonRequest } from '../../src/llm/index.js';
 import type { Job } from '../../src/jobs/index.js';
@@ -10,10 +19,18 @@ import {
   SourceError,
   type SourceDefinition,
 } from '../../src/sources/index.js';
-import type { IgnoredJob, TrackedJob, Tracker } from '../../src/tracker/index.js';
+import {
+  createLocalSheet,
+  loadPending,
+  type IgnoredJob,
+  type OpenLock,
+  type TrackedJob,
+  type Tracker,
+} from '../../src/tracker/index.js';
+import { readWorkbook } from '../../src/xlsx/index.js';
 import { FakeLLM } from '../helpers/fake-llm.js';
 import { DERIVED_ANSWER } from '../helpers/fixtures.js';
-import { FakeUi } from '../helpers/fake-ui.js';
+import { FakeUi, type DEFAULT } from '../helpers/fake-ui.js';
 import { saveGoogleSession } from '../helpers/google-session.js';
 import { useTempHome } from '../helpers/temp-home.js';
 
@@ -299,5 +316,161 @@ describe('jobhunter hunt', () => {
     // A dry run doesn't need Google.
     await setUp({ sheet: false });
     await expect(runHunt(deps({}).deps, { dryRun: true })).resolves.toMatchObject({ fetched: 0 });
+  });
+});
+
+describe('jobhunter hunt with a local sheet', () => {
+  const home = useTempHome();
+  const sheetPath = () => join(home(), 'Jobs', 'jobhunter.xlsx');
+  const lock: OpenLock = { app: 'LibreOffice', by: 'Alex', lockFile: '/x/.~lock', stale: false };
+
+  async function setUpLocal() {
+    await setUp({ sheet: false, google: false });
+    const profile = await readProfile('default');
+    if (!profile) throw new Error('no profile');
+    await saveProfile({ ...profile, localSheet: { path: sheetPath() } });
+    await mkdir(join(home(), 'Jobs'));
+    await createLocalSheet(sheetPath(), now);
+  }
+
+  function localDeps(
+    feeds: Record<string, Job[]>,
+    {
+      answers = [],
+      interactive = false,
+      locks = [],
+    }: {
+      answers?: (string | typeof DEFAULT)[];
+      interactive?: boolean;
+      /** Lock state per check, in order; after the list runs out the file is closed. */
+      locks?: (OpenLock | undefined)[];
+    } = {},
+  ) {
+    const ui = new FakeUi(answers);
+    const fetched: string[] = [];
+    const checks = [...locks];
+    const value = {
+      ui,
+      connect: () => scorer(),
+      sources: [BOARD_A],
+      mappings: {},
+      fetchSource: (s: SourceDefinition) => {
+        fetched.push(s.id);
+        return Promise.resolve({ source: s, jobs: feeds[s.id] ?? [], errors: [], skipped: 0 });
+      },
+      findLock: () => Promise.resolve(checks.shift()),
+      interactive,
+      now: () => now,
+    } satisfies HuntDeps;
+    return { deps: value, ui, fetched };
+  }
+
+  const companies = async (tab: string) =>
+    (readWorkbook(await readFile(sheetPath())).find((sheet) => sheet.name === tab)?.rows ?? [])
+      .slice(1)
+      .map((row) => row[0]);
+
+  it('adds the jobs to the file without any Google setup', async () => {
+    await setUpLocal();
+    const { deps: d, ui } = localDeps({
+      'board-a': [
+        job('a1', { title: 'Senior Frontend Engineer 90' }),
+        job('s', { title: 'Account Executive' }),
+      ],
+    });
+
+    const summary = await runHunt(d);
+
+    expect(summary).toMatchObject({ toApply: 1, ignored: 1, pending: 0 });
+    expect(await companies('Applications')).toEqual(['Company a1']);
+    expect(await companies('To apply')).toEqual(['Company a1']);
+    expect(await companies('Ignored')).toEqual(['']); // Restore column comes first
+    expect(ui.output.at(-1)).toBe(`Your sheet: ${sheetPath()}`);
+
+    // The next run knows them.
+    await expect(
+      runHunt(localDeps({ 'board-a': [job('a1')] }).deps, { force: true }),
+    ).resolves.toMatchObject({ known: 1 });
+  });
+
+  it('stops before fetching when the file is open and nobody can answer', async () => {
+    await setUpLocal();
+    const { deps: d, fetched } = localDeps({ 'board-a': [job('a1')] }, { locks: [lock] });
+
+    await expect(runHunt(d)).rejects.toThrow(
+      new HuntSetupError(
+        'jobhunter.xlsx is open in LibreOffice by Alex. Close it so Jobhunter can add the new jobs.',
+      ),
+    );
+    expect(fetched).toEqual([]);
+  });
+
+  it('waits for the user to close the file', async () => {
+    await setUpLocal();
+    const { deps: d, ui } = localDeps(
+      { 'board-a': [job('a1')] },
+      { interactive: true, locks: [lock, lock], answers: ['retry', 'retry'] },
+    );
+
+    await runHunt(d);
+
+    expect(ui.prompts.map((p) => p.message)).toEqual([
+      'What would you like to do?',
+      'What would you like to do?',
+    ]);
+    expect(await companies('Applications')).toEqual(['Company a1']);
+  });
+
+  it('can be cancelled while the file is open', async () => {
+    await setUpLocal();
+    const { deps: d, fetched } = localDeps(
+      {},
+      { interactive: true, locks: [lock], answers: ['cancel'] },
+    );
+    await expect(runHunt(d)).rejects.toThrow('Cancelled');
+    expect(fetched).toEqual([]);
+  });
+
+  it('keeps the jobs for the next run when the file is opened during the run', async () => {
+    await setUpLocal();
+    // Closed at the start, opened before the writes.
+    const first = localDeps(
+      {
+        'board-a': [
+          job('a1', { title: 'Senior Frontend Engineer 90' }),
+          job('s', { title: 'Account Executive' }),
+        ],
+      },
+      { locks: [undefined, lock] },
+    );
+
+    const summary = await runHunt(first.deps);
+
+    expect(summary.pending).toBe(2);
+    expect(await companies('Applications')).toEqual([]);
+    expect(first.ui.output.join('\n')).toContain(
+      `Your sheet was open, so 2 jobs were kept in ${pendingFile('default')}. The next \`jobhunter hunt\` adds them.`,
+    );
+    expect((await loadPending(pendingFile('default')))?.applications).toHaveLength(1);
+
+    // The next run adds them first, so the same jobs aren't added twice.
+    const second = localDeps({ 'board-a': [job('a1', { title: 'Senior Frontend Engineer 90' })] });
+    const next = await runHunt(second.deps, { force: true });
+
+    expect(next).toMatchObject({ known: 1, toApply: 0 });
+    expect(second.ui.output).toContain('Added 2 jobs kept from your last run.');
+    expect(await companies('Applications')).toEqual(['Company a1']);
+    expect(await loadPending(pendingFile('default'))).toBeUndefined();
+  });
+
+  it('asks for init when the file is gone', async () => {
+    await setUpLocal();
+    const profile = await readProfile('default');
+    if (!profile) throw new Error('no profile');
+    await saveProfile({ ...profile, localSheet: { path: join(home(), 'moved.xlsx') } });
+
+    await expect(runHunt(localDeps({}).deps)).rejects.toThrow(
+      `Can't find your tracking sheet at ${join(home(), 'moved.xlsx')}`,
+    );
   });
 });

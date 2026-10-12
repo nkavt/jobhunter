@@ -115,7 +115,7 @@ describe('init: Google step', () => {
     const browser = signsIn();
 
     await runInit({
-      ui: new FakeUi(['google', 'connect', path, 'skip']),
+      ui: new FakeUi(['sheet', 'google', 'connect', path, 'skip']),
       openBrowser: browser.open,
       connect: () => new FakeLLM(),
     });

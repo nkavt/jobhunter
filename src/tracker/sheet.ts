@@ -137,7 +137,11 @@ export class SheetTracker implements Tracker {
   }
 }
 
-function requireColumns(tab: string, header: string[] | undefined, required: string[]): string[] {
+export function requireColumns(
+  tab: string,
+  header: string[] | undefined,
+  required: string[],
+): string[] {
   const columns = header ?? [];
   const missing = required.filter((name) => !columns.includes(name));
   if (missing.length > 0) {

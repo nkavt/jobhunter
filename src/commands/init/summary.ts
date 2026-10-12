@@ -20,8 +20,10 @@ export async function missingSetup(profileName: string): Promise<string[]> {
   if (!config) missing.push('AI provider and key');
   if (!profile?.cv) missing.push('CV');
   if (!profile?.preferences || !hasInstructions) missing.push('preferences and candidate profile');
-  if (!client || !token) missing.push('Google Sheets connection');
-  else if (!profile?.sheet) missing.push('tracking sheet');
+  if (!profile?.localSheet) {
+    if (profile?.sheet && (!client || !token)) missing.push('Google Sheets connection');
+    else if (!profile?.sheet) missing.push('tracking sheet');
+  }
   return missing;
 }
 
@@ -31,7 +33,7 @@ export async function finishInit(ui: Ui, profileName: string): Promise<void> {
   ui.info('');
   if (missing.length === 0) {
     ui.success("You're all set. 🎉 Happy hunting! 🏹");
-    ui.info(dim('Next: `jobhunter hunt` finds new jobs and scores them for you (coming soon).'));
+    ui.info(dim('Next: `jobhunter hunt` finds new jobs and scores them for you.'));
   } else {
     ui.info(`Almost there. Still to set up: ${missing.join(', ')}.`);
     ui.info(dim('Run `jobhunter init` again to finish.'));

@@ -87,6 +87,11 @@ export const SheetLinkSchema = z.object({
   statusMap: z.record(z.string(), z.string()).nullable(),
 });
 
+/** The tracking sheet as a local .xlsx file instead of a Google Sheet. */
+export const LocalSheetSchema = z.object({
+  path: z.string().min(1),
+});
+
 /**
  * `profiles/<name>/profile.json`: who the user is and what they want. Filled in step by
  * step during `init`, so everything except identity is optional.
@@ -97,14 +102,17 @@ export const ProfileSchema = z.object({
   cv: CvInfoSchema.optional(),
   derived: DerivedSchema.optional(),
   preferences: PreferencesSchema.optional(),
-  /** `null` = user chose local-only tracking; missing = not set up yet. */
+  /** The Google tracking sheet. `null` = none; missing = not set up yet. */
   sheet: SheetLinkSchema.nullable().optional(),
+  /** Set when the user tracks jobs in a local file; it wins over `sheet`. */
+  localSheet: LocalSheetSchema.optional(),
 });
 
 export type CvInfo = z.infer<typeof CvInfoSchema>;
 export type Derived = z.infer<typeof DerivedSchema>;
 export type Preferences = z.infer<typeof PreferencesSchema>;
 export type SheetLink = z.infer<typeof SheetLinkSchema>;
+export type LocalSheet = z.infer<typeof LocalSheetSchema>;
 export type Profile = z.infer<typeof ProfileSchema>;
 
 export async function readProfile(name: string): Promise<Profile | undefined> {

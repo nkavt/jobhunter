@@ -48,13 +48,13 @@ describe('end of init', () => {
       'AI provider and key',
       'CV',
       'preferences and candidate profile',
-      'Google Sheets connection',
+      'tracking sheet',
     ]);
 
     const ui = new FakeUi([]);
     await finishInit(ui, 'default');
     expect(ui.output).toContain(
-      'Almost there. Still to set up: AI provider and key, CV, preferences and candidate profile, Google Sheets connection.',
+      'Almost there. Still to set up: AI provider and key, CV, preferences and candidate profile, tracking sheet.',
     );
     expect(ui.output.join('\n')).not.toContain('Happy hunting');
   });

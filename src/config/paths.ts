@@ -32,6 +32,11 @@ export const profileDir = (name: string): string => join(profilesDir(), name);
 export const profileFile = (name: string): string => join(profileDir(name), 'profile.json');
 export const cvFile = (name: string): string => join(profileDir(name), 'cv.md');
 export const instructionsFile = (name: string): string => join(profileDir(name), 'instructions.md');
+/** Jobs found while the local tracking sheet was open, added on the next run. */
+export const pendingFile = (name: string): string => join(profileDir(name), 'pending.json');
+/** The local tracking sheet as it was before the last write. */
+export const sheetBackupFile = (name: string): string =>
+  join(cacheDir(), 'backups', `${name}.xlsx`);
 
 /** Files that hold credentials; written with mode 0600 and checked on startup. */
 export const secretFiles = (): string[] => [
