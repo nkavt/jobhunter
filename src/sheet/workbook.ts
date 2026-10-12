@@ -193,11 +193,14 @@ export function xlsxViewFormula(
     )
     .join('+');
   // Always the same size, padded with blanks: LibreOffice keeps an array formula at the size it
-  // was saved with, so a plain FILTER would repeat or cut off rows as statuses change.
+  // was saved with, so a plain FILTER would repeat or cut off rows as statuses change. Padding
+  // uses IF, not IFERROR: in Excel, IFERROR over an array blanks texts longer than 255 characters.
   const rows = `_xlfn.SEQUENCE(${String(lastRow - 1)})`;
   const columns = `_xlfn.SEQUENCE(1,${String(VIEW_COLUMN_COUNT)})`;
+  // Counted directly rather than with ROWS(): LibreOffice's ROWS() rejects FILTER's empty result.
+  const count = `SUMPRODUCT((${condition})*1)`;
   const sorted = `_xlfn._xlws.SORT(_xlfn._xlws.FILTER(${data},${condition}),1,1)`;
-  return `IFERROR(INDEX(${sorted},${rows},${columns}),IF(${rows}+${columns}=2,"${EMPTY_VIEW}",""))`;
+  return `IF(${count}=0,IF(${rows}+${columns}=2,"${EMPTY_VIEW}",""),IF(${rows}<=${count},INDEX(${sorted},${rows},${columns}),""))`;
 }
 
 function ignoredSheet(tab: TabData): Sheet {
