@@ -1,11 +1,11 @@
 import { http, HttpResponse, type JsonBodyType } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { GEMINI_BASE_URL, GeminiAdapter } from '../../../src/llm/gemini/adapter.js';
 import {
+  connectAdapter,
   createAdapter,
   DEFAULT_GEMINI_MODEL,
-  GEMINI_BASE_URL,
-  GeminiAdapter,
   getAdapterName,
   InsufficientCreditError,
   InvalidKeyError,
@@ -85,10 +85,21 @@ describe('GeminiAdapter: setup and auth', () => {
     expect(getAdapterName(gemini)).toBe(`${DEFAULT_GEMINI_MODEL} (Google)`);
   });
 
-  it('is what createAdapter builds for the gemini provider', () => {
-    const created = createAdapter({ provider: 'gemini', apiKey: 'k', model: 'gemini-x' });
-    expect(created).toBeInstanceOf(GeminiAdapter);
+  it('is what createAdapter loads for the gemini provider, on the first call', async () => {
+    const { handler, requests } = generateHandler(reply('Hello'));
+    server.use(handler);
+
+    const created = createAdapter({ provider: 'gemini', apiKey: 'AIza-x', model: 'gemini-x' });
     expect(created.model).toBe('gemini-x');
+    expect(created.providerName).toBe('Google');
+    await created.generateText({ prompt: 'Hi' });
+
+    expect(requests[0]?.url).toBe(`${API}/models/gemini-x:generateContent`);
+    expect(requests[0]?.headers.get('x-goog-api-key')).toBe('AIza-x');
+  });
+
+  it('uses the default model when setup has not picked one yet', () => {
+    expect(connectAdapter({ provider: 'gemini', apiKey: 'k' }).model).toBe(DEFAULT_GEMINI_MODEL);
   });
 });
 

@@ -1,7 +1,6 @@
 import type { Config, Provider } from '../../config/index.js';
 import {
-  DEFAULT_CLAUDE_MODEL,
-  DEFAULT_GEMINI_MODEL,
+  DEFAULT_MODELS,
   PROVIDER_NAMES,
   InvalidKeyError,
   LLMError,
@@ -15,12 +14,6 @@ import { CancelledError, dim, type Choice, type Ui } from '../../ui/index.js';
 
 export const MAX_KEY_ATTEMPTS = 3;
 const SHOW_OLDER = Symbol('show older models');
-
-/** Preselected in the model list when the key can use it. */
-const DEFAULT_MODELS: Record<Provider, string> = {
-  claude: DEFAULT_CLAUDE_MODEL,
-  gemini: DEFAULT_GEMINI_MODEL,
-};
 
 /** Where to get a new key, for the "rejected too many times" message. */
 const KEY_HELP: Record<Provider, string> = {

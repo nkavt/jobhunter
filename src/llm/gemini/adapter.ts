@@ -7,6 +7,7 @@ import {
   type Model,
   type Part,
 } from '@google/genai';
+import { DEFAULT_GEMINI_MODEL } from '../defaults.js';
 import { PROVIDER_NAMES } from '../describe.js';
 import { LLMError } from '../errors.js';
 import { asObjectSchema, generateValidated, parseJson, toJsonSchema } from '../structured.js';
@@ -26,7 +27,6 @@ import type {
 import { addUsage } from '../usage.js';
 import { mapGeminiError, type ErrorContext } from './errors.js';
 
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 export const GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com';
 const DEFAULT_MAX_TOKENS = 4096;
 /**

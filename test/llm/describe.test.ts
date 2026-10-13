@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ClaudeAdapter, getAdapterName, getConfiguredAdapterName } from '../../src/llm/index.js';
+import { ClaudeAdapter } from '../../src/llm/claude/adapter.js';
+import { getAdapterName, getConfiguredAdapterName } from '../../src/llm/index.js';
 
 describe('adapter names for messages', () => {
   it('names the model and the provider', () => {

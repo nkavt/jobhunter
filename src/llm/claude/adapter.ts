@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
+import { DEFAULT_CLAUDE_MODEL } from '../defaults.js';
 import { PROVIDER_NAMES } from '../describe.js';
 import { LLMError } from '../errors.js';
 import { asObjectSchema, generateValidated, parseJson, toJsonSchema } from '../structured.js';
@@ -19,7 +20,6 @@ import type {
 import { addUsage } from '../usage.js';
 import { mapClaudeError, type ErrorContext } from './errors.js';
 
-export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5-5';
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_MAX_SEARCHES = 5;
 /** A long research run can pause; how many times we continue before giving up. */
