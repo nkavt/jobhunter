@@ -61,7 +61,9 @@ Best matches:
   - **Anthropic (Claude)**, from the [Anthropic Console](https://console.anthropic.com/settings/keys).
   - **Google (Gemini)**, from [Google AI Studio](https://aistudio.google.com/apikey).
 
-  Usage is billed by the provider to your account. The cost depends on the model you pick and how many jobs are scored; each run prints the AI tokens it used.
+  > 💡 **Try Jobhunter for free with Gemini.** As of October 2026, the Gemini API has a [free tier](https://ai.google.dev/gemini-api/docs/pricing) that includes the Flash and Flash-Lite models (with rate limits), which is enough to try `init` and a few `hunt` runs. Google may change this, so check the pricing page. On the free tier, **Google may use what you send (including your CV) to improve its products**. The paid tier doesn't.
+
+  Paid usage is billed by the provider to your account. The cost depends on the model you pick and how many jobs are scored; each run prints the AI tokens it used.
 
 - **A spreadsheet app** to open your tracking sheet. We recommend [LibreOffice](https://www.libreoffice.org/) (free and open source). Excel works too. See [Using a local file](#using-a-local-file).
 - **Optional: a Google account**, only if you'd rather keep the sheet in Google Sheets. That also needs a free Google Cloud project to sign in with ([step-by-step guide below](#setting-up-google-access)).
@@ -343,7 +345,7 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 
 ## Privacy
 
-- **The AI provider you chose** (Anthropic or Google) receives your CV when it's converted (PDF and DOCX only) and when your profile is written. On each `hunt` it also receives your candidate profile, CV and preferences along with the jobs being scored. See your provider's privacy policy, for example [Anthropic's](https://www.anthropic.com/legal/privacy) or [Google's Gemini API terms](https://ai.google.dev/gemini-api/terms).
+- **The AI provider you chose** (Anthropic or Google) receives your CV when it's converted (PDF and DOCX only) and when your profile is written. On each `hunt` it also receives your candidate profile, CV and preferences along with the jobs being scored. See your provider's privacy policy, for example [Anthropic's](https://www.anthropic.com/legal/privacy) or [Google's Gemini API terms](https://ai.google.dev/gemini-api/terms). On Gemini's free tier, Google may use this data to improve its products.
 - **Your tracking sheet** stays on your computer when it's a local file. With a Google Sheet, **Google** stores it in your Drive, and Jobhunter can only reach the files it created.
 - **Job boards** are fetched anonymously. Nothing about you is sent to them.
 - Jobhunter itself has no server and collects nothing.
