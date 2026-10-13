@@ -61,7 +61,7 @@ Best matches:
   - **Anthropic (Claude)**, from the [Anthropic Console](https://console.anthropic.com/settings/keys).
   - **Google (Gemini)**, from [Google AI Studio](https://aistudio.google.com/apikey).
 
-  > 💡 **Try Jobhunter for free with Gemini.** As of October 2026, the Gemini API has a [free tier](https://ai.google.dev/gemini-api/docs/pricing) that includes the Flash and Flash-Lite models (with rate limits), which is enough to try `init` and a few `hunt` runs. Google may change this, so check the pricing page. On the free tier, **Google may use what you send (including your CV) to improve its products**. The paid tier doesn't.
+  > 💡 **Try Jobhunter for free with Gemini.** As of October 2026, the Gemini API has a [free tier](https://ai.google.dev/gemini-api/docs/pricing) for some of its models, with rate limits. Google may change this, so check the pricing page. On the free tier, **Google may use what you send (including your CV) to improve its products**. The paid tier doesn't.
 
   Paid usage is billed by the provider to your account. The cost depends on the model you pick and how many jobs are scored; each run prints the AI tokens it used.
 
