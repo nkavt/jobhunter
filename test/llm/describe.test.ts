@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ClaudeAdapter, getAdapterName, getConfiguredAdapterName } from '../../src/llm/index.js';
+import { ClaudeAdapter } from '../../src/llm/claude/adapter.js';
+import { getAdapterName, getConfiguredAdapterName } from '../../src/llm/index.js';
 
 describe('adapter names for messages', () => {
   it('names the model and the provider', () => {
@@ -11,6 +12,14 @@ describe('adapter names for messages', () => {
   it('works from config.json values', () => {
     expect(getConfiguredAdapterName({ provider: 'claude', model: 'claude-haiku-5-5' })).toBe(
       'claude-haiku-5-5 (Anthropic)',
+    );
+  });
+});
+
+describe('provider names', () => {
+  it('names Google for Gemini', () => {
+    expect(getConfiguredAdapterName({ provider: 'gemini', model: 'gemini-3.8-flash' })).toBe(
+      'gemini-3.8-flash (Google)',
     );
   });
 });

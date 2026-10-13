@@ -1,8 +1,9 @@
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { ClaudeAdapter } from '../../../src/llm/claude/adapter.js';
 import {
-  ClaudeAdapter,
+  connectAdapter,
   createAdapter,
   DEFAULT_CLAUDE_MODEL,
   InsufficientCreditError,
@@ -50,10 +51,21 @@ describe('ClaudeAdapter: setup and auth', () => {
     expect(new ClaudeAdapter({ apiKey: 'k' }).model).toBe(DEFAULT_CLAUDE_MODEL);
   });
 
-  it('is what createAdapter builds for the claude provider', () => {
-    const created = createAdapter({ provider: 'claude', apiKey: 'k', model: 'claude-x' });
-    expect(created).toBeInstanceOf(ClaudeAdapter);
+  it('is what createAdapter loads for the claude provider, on the first call', async () => {
+    const { handler, requests } = messagesHandler(message([text('Hello')]));
+    server.use(handler);
+
+    const created = createAdapter({ provider: 'claude', apiKey: 'sk-ant-x', model: 'claude-x' });
     expect(created.model).toBe('claude-x');
+    expect(created.providerName).toBe('Anthropic');
+    await created.generateText({ prompt: 'Hi' });
+
+    expect(requests[0]?.body.model).toBe('claude-x');
+    expect(requests[0]?.headers.get('x-api-key')).toBe('sk-ant-x');
+  });
+
+  it('uses the default model when setup has not picked one yet', () => {
+    expect(connectAdapter({ provider: 'claude', apiKey: 'k' }).model).toBe(DEFAULT_CLAUDE_MODEL);
   });
 });
 

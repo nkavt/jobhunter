@@ -1,8 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { jsonSchemaOutputFormat } from '@anthropic-ai/sdk/helpers/json-schema';
+import { DEFAULT_CLAUDE_MODEL } from '../defaults.js';
 import { PROVIDER_NAMES } from '../describe.js';
 import { LLMError } from '../errors.js';
-import { generateValidated, toJsonSchema } from '../structured.js';
+import { asObjectSchema, generateValidated, parseJson, toJsonSchema } from '../structured.js';
 import type {
   FileInput,
   JsonRequest,
@@ -19,7 +20,6 @@ import type {
 import { addUsage } from '../usage.js';
 import { mapClaudeError, type ErrorContext } from './errors.js';
 
-export const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5-5';
 const DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_MAX_SEARCHES = 5;
 /** A long research run can pause; how many times we continue before giving up. */
@@ -223,38 +223,6 @@ function fileBlock(file: FileInput): Anthropic.ContentBlockParam {
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
 function isImageType(type: string): type is (typeof IMAGE_TYPES)[number] {
   return (IMAGE_TYPES as readonly string[]).includes(type);
-}
-
-/**
- * Structured output needs an object at the root; wrap anything else in `{ result }`.
- * `$defs` stay at the root so `#/$defs/...` references keep resolving.
- */
-function asObjectSchema(schema: Record<string, unknown>): {
-  schema: Record<string, unknown>;
-  unwrap: (value: unknown) => unknown;
-} {
-  if (schema.type === 'object') return { schema, unwrap: (value) => value };
-  const { $defs, ...inner } = schema;
-  return {
-    schema: {
-      type: 'object',
-      properties: { result: inner },
-      required: ['result'],
-      additionalProperties: false,
-      ...($defs !== undefined ? { $defs } : {}),
-    },
-    unwrap: (value) =>
-      typeof value === 'object' && value !== null && 'result' in value ? value.result : value,
-  };
-}
-
-/** Invalid JSON is returned as the raw string, so schema validation reports a useful issue. */
-function parseJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
 }
 
 function textOf(message: Anthropic.Message): string {

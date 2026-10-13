@@ -1,5 +1,5 @@
 import { InvalidArgumentError, type Command } from 'commander';
-import { ClaudeAdapter } from '../../llm/index.js';
+import { connectAdapter } from '../../llm/index.js';
 import { TrackerError } from '../../tracker/index.js';
 import { CancelledError, createTerminalUi, dim } from '../../ui/index.js';
 import { HuntSetupError } from './errors.js';
@@ -56,10 +56,7 @@ export function registerHunt(program: Command): void {
       const ui = createTerminalUi();
       try {
         await runHunt(
-          {
-            ui,
-            connect: (apiKey, model) => new ClaudeAdapter({ apiKey, ...(model ? { model } : {}) }),
-          },
+          { ui, connect: connectAdapter },
           {
             ai: flags.ai,
             ...(flags.force ? { force: true } : {}),

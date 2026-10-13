@@ -4,7 +4,7 @@ import { readJsonFile, writeJsonFile } from './fs.js';
 import { configFile } from './paths.js';
 import { ProfileNameSchema } from './profile.js';
 
-export const ProviderSchema = z.enum(['claude']);
+export const ProviderSchema = z.enum(['claude', 'gemini']);
 export type Provider = z.infer<typeof ProviderSchema>;
 
 /** `config.json`: how Jobhunter runs and authenticates. Never holds user/profile data. */

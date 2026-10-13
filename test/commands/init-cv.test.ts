@@ -167,7 +167,7 @@ describe('init: choosing what to change', () => {
     await runInit({
       openBrowser: () => undefined,
       ui,
-      connect: (apiKey, model) => {
+      connect: ({ apiKey }, model) => {
         connections.push({ apiKey, ...(model ? { model } : {}) });
         return new FakeLLM();
       },

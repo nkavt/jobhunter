@@ -36,6 +36,7 @@
     "ai",
     "claude",
     "anthropic",
+    "gemini",
     "google-sheets",
     "xlsx",
     "spreadsheet",
@@ -51,6 +52,7 @@
   "bugs": "https://github.com/nkavt/jobhunter/issues",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
+    "@google/genai": "^2.29.0",
     "@inquirer/prompts": "^8.7.3",
     "commander": "^15.0.0",
     "fast-xml-parser": "^5.11.2",
