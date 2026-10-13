@@ -5,9 +5,11 @@ import { handleInitError, runInit } from '../../src/commands/init/index.js';
 import { MAX_KEY_ATTEMPTS, SetupAbortedError } from '../../src/commands/init/ai-setup.js';
 import { configFile, readConfig, saveConfig, type Config } from '../../src/config/index.js';
 import {
+  DEFAULT_GEMINI_MODEL,
   InsufficientCreditError,
   InvalidKeyError,
   NetworkError,
+  type Connection,
   type LLMAdapter,
   type ModelInfo,
 } from '../../src/llm/index.js';
@@ -28,12 +30,18 @@ const MODELS: ModelInfo[] = [
   { id: 'claude-sonnet-4-5', displayName: 'Claude Sonnet 4.5', family: 'sonnet', deprecated: true },
 ];
 
+const GEMINI_MODELS: ModelInfo[] = [
+  { id: 'gemini-3.8-pro', displayName: 'gemini-3.8-pro', family: 'pro' },
+  { id: 'gemini-3.8-flash', displayName: 'gemini-3.8-flash', family: 'flash' },
+  { id: 'gemini-3.8-flash-lite', displayName: 'gemini-3.8-flash-lite', family: 'flash-lite' },
+];
+
 const GOOD_KEY = 'sk-ant-good-1234';
 
 /** A fake Anthropic: GOOD_KEY works, anything else is rejected. */
 function fakeClaude(options: { failModel?: (model: string) => Error | undefined } = {}) {
   const connections: string[] = [];
-  const connect = (apiKey: string): LLMAdapter => {
+  const connect = ({ apiKey }: Connection): LLMAdapter => {
     connections.push(apiKey);
     return new FakeLLM({
       models: MODELS,
@@ -87,15 +95,35 @@ describe('jobhunter init: AI setup', () => {
     expect((await stat(configFile())).mode & 0o777).toBe(0o600);
   });
 
-  it('lists Gemini as coming soon but not selectable', async () => {
+  it('offers Anthropic and Google', async () => {
     const ui = new FakeUi(['claude', GOOD_KEY, DEFAULT, '', 'skip']);
     await runInit({ openBrowser: () => undefined, ui, ...fakeClaude() });
-    expect(ui.prompts[0]?.choices).toContainEqual(
-      expect.objectContaining({ value: 'gemini', disabled: 'coming soon' }),
-    );
-    await expect(
-      runInit({ openBrowser: () => undefined, ui: new FakeUi(['gemini']), ...fakeClaude() }),
-    ).rejects.toThrow('not an enabled choice');
+    expect(ui.prompts[0]?.choices?.map((c) => c.value)).toEqual(['claude', 'gemini']);
+    expect(ui.prompts[0]?.choices?.every((c) => !c.disabled)).toBe(true);
+  });
+
+  it('sets up Gemini with a Google key, preselecting the default Gemini model', async () => {
+    const connections: Connection[] = [];
+    const connect = (connection: Connection): LLMAdapter => {
+      connections.push(connection);
+      return new FakeLLM({ models: GEMINI_MODELS });
+    };
+    const ui = new FakeUi(['gemini', 'AIza-good-5678', DEFAULT, '', 'skip']);
+
+    await runInit({ openBrowser: () => undefined, ui, connect });
+
+    expect(ui.prompts.find((p) => p.type === 'password')?.message).toBe('Google API key');
+    expect(ui.prompts.some((p) => p.message.startsWith('API base URL'))).toBe(false);
+    const choices = ui.prompts.find((p) => p.message === 'Model')?.choices ?? [];
+    expect(choices.find((c) => c.value === 'gemini-3.8-pro')?.name).toContain('best quality');
+    expect(connections[0]).toEqual({ provider: 'gemini', apiKey: 'AIza-good-5678' });
+    expect(await readConfig()).toEqual({
+      version: 1,
+      provider: 'gemini',
+      apiKey: 'AIza-good-5678',
+      model: DEFAULT_GEMINI_MODEL,
+      activeProfile: 'default',
+    });
   });
 
   it('shows current models with hints and hides older ones until asked', async () => {
@@ -235,6 +263,22 @@ describe('jobhunter init: AI setup', () => {
         'Enter to keep ••••1234',
       );
       expect(await readConfig()).toEqual({ ...existingConfig, apiKey: GOOD_KEY });
+    });
+
+    it("doesn't offer the saved key or model after switching provider", async () => {
+      await saveConfig({ ...existingConfig, apiKey: GOOD_KEY });
+      const connect = (): LLMAdapter => new FakeLLM({ models: GEMINI_MODELS });
+      const ui = new FakeUi(['ai', 'gemini', 'AIza-new-0000', DEFAULT]);
+
+      await runInit({ openBrowser: () => undefined, ui, connect });
+
+      expect(ui.prompts.find((p) => p.message === 'AI provider')).toBeDefined();
+      expect(ui.prompts.find((p) => p.type === 'password')?.message).toBe('Google API key');
+      expect(await readConfig()).toMatchObject({
+        provider: 'gemini',
+        apiKey: 'AIza-new-0000',
+        model: DEFAULT_GEMINI_MODEL,
+      });
     });
 
     it('starts fresh when the existing config is broken', async () => {

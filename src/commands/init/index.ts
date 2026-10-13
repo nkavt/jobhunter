@@ -7,7 +7,12 @@ import {
   type Config,
 } from '../../config/index.js';
 import { openInBrowser } from '../../google/index.js';
-import { ClaudeAdapter, getConfiguredAdapterName, type LLMAdapter } from '../../llm/index.js';
+import {
+  connectAdapter,
+  getConfiguredAdapterName,
+  type Connection,
+  type LLMAdapter,
+} from '../../llm/index.js';
 import { CancelledError, createTerminalUi, dim, type Ui } from '../../ui/index.js';
 import { SetupAbortedError, setupAi } from './ai-setup.js';
 import { importCv } from './cv-step.js';
@@ -20,7 +25,7 @@ export interface InitDeps {
   /** Opens the Google sign-in page; tests replace it with a fake browser. */
   openBrowser: (url: string) => void;
   /** Build an adapter; the model only matters for generating (CV conversion etc.). */
-  connect: (apiKey: string, model?: string) => LLMAdapter;
+  connect: (connection: Connection, model?: string) => LLMAdapter;
 }
 
 type Step = 'ai' | 'cv' | 'profile' | 'sheet';
@@ -48,7 +53,7 @@ export async function runInit(deps: InitDeps): Promise<void> {
   }
 
   if (!config) return;
-  const llm = deps.connect(config.apiKey, config.model);
+  const llm = deps.connect(config, config.model);
   const profileName = config.activeProfile;
 
   // A new CV changes the facts the profile is built from, so the profile step follows it.
@@ -113,7 +118,7 @@ export function registerInit(program: Command): void {
   program
     .command('init')
     .description(
-      'Set up Claude, import your CV, answer a few questions and create your tracking sheet',
+      'Set up the AI, import your CV, answer a few questions and create your tracking sheet',
     )
     .action(async () => {
       const ui = createTerminalUi();
@@ -121,7 +126,7 @@ export function registerInit(program: Command): void {
         await runInit({
           ui,
           openBrowser: openInBrowser,
-          connect: (apiKey, model) => new ClaudeAdapter({ apiKey, ...(model ? { model } : {}) }),
+          connect: connectAdapter,
         });
       } catch (error) {
         handleInitError(ui, error);

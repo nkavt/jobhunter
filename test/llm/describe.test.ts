@@ -14,3 +14,11 @@ describe('adapter names for messages', () => {
     );
   });
 });
+
+describe('provider names', () => {
+  it('names Google for Gemini', () => {
+    expect(getConfiguredAdapterName({ provider: 'gemini', model: 'gemini-3.8-flash' })).toBe(
+      'gemini-3.8-flash (Google)',
+    );
+  });
+});

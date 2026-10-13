@@ -7,5 +7,11 @@ export {
   DEFAULT_CLAUDE_MODEL,
   type ClaudeAdapterOptions,
 } from './claude/adapter.js';
-export { createAdapter } from './create.js';
+export {
+  DEFAULT_GEMINI_MODEL,
+  GEMINI_BASE_URL,
+  GeminiAdapter,
+  type GeminiAdapterOptions,
+} from './gemini/adapter.js';
+export { connectAdapter, createAdapter, type AdapterConfig, type Connection } from './create.js';
 export { getAdapterName, getConfiguredAdapterName, PROVIDER_NAMES } from './describe.js';

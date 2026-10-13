@@ -17,7 +17,7 @@ import {
   type GoogleClient,
 } from '../../google/index.js';
 import type { Job } from '../../jobs/index.js';
-import { getAdapterName, type LLMAdapter, type Usage } from '../../llm/index.js';
+import { getAdapterName, type Connection, type LLMAdapter, type Usage } from '../../llm/index.js';
 import type { FeedMapping } from '../../mapping/index.js';
 import {
   BUILTIN_MAPPINGS,
@@ -67,7 +67,7 @@ export interface HuntOptions {
 
 export interface HuntDeps {
   ui: Ui;
-  connect: (apiKey: string, model?: string) => LLMAdapter;
+  connect: (connection: Connection, model?: string) => LLMAdapter;
   sources?: SourceDefinition[];
   mappings?: Record<string, FeedMapping>;
   fetchSource?: (
@@ -292,7 +292,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   } else if (toScore.length === 0) {
     tracked = [];
   } else {
-    const llm = deps.connect(config.apiKey, config.model);
+    const llm = deps.connect(config, config.model);
     const [cv, instructions] = await Promise.all([
       readFile(cvFile(profile.name), 'utf8'),
       readFile(instructionsFile(profile.name), 'utf8'),

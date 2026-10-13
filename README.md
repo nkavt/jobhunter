@@ -33,7 +33,7 @@ Best matches:
 
 > 🚧 **Early version (0.2).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
 
-> Jobhunter works with **Claude (Anthropic)** today. **More AI providers are coming soon**, starting with Google Gemini.
+> Jobhunter works with **Claude (Anthropic)** and **Gemini (Google)**.
 
 ## Contents
 
@@ -57,7 +57,12 @@ Best matches:
 ## Requirements
 
 - **Node.js 22.12 or newer.** Check with `node --version`. Get it from [nodejs.org](https://nodejs.org/).
-- **An Anthropic API key**, from the [Anthropic Console](https://console.anthropic.com/settings/keys). Usage is billed by Anthropic to your account. The cost depends on the model you pick and how many jobs are scored; each run prints the AI tokens it used.
+- **An API key for an AI provider**, one of:
+  - **Anthropic (Claude)**, from the [Anthropic Console](https://console.anthropic.com/settings/keys).
+  - **Google (Gemini)**, from [Google AI Studio](https://aistudio.google.com/apikey).
+
+  Usage is billed by the provider to your account. The cost depends on the model you pick and how many jobs are scored; each run prints the AI tokens it used.
+
 - **A spreadsheet app** to open your tracking sheet. We recommend [LibreOffice](https://www.libreoffice.org/) (free and open source). Excel works too. See [Using a local file](#using-a-local-file).
 - **Optional: a Google account**, only if you'd rather keep the sheet in Google Sheets. That also needs a free Google Cloud project to sign in with ([step-by-step guide below](#setting-up-google-access)).
 - **Your CV** as PDF, DOCX, Markdown or plain text.
@@ -154,7 +159,7 @@ Sets everything up. Run it once to start. Run it again any time to change one pa
 
 **On first run** it goes through every step:
 
-1. **AI provider, key and model.** Choose Anthropic (Claude) (more providers are coming soon), paste your API key, and pick a model from the list your key can use. Jobhunter checks that the key and model actually work before going on.
+1. **AI provider, key and model.** Choose Anthropic (Claude) or Google (Gemini), paste your API key, and pick a model from the list your key can use. Jobhunter checks that the key and model actually work before going on.
 2. **CV.** Give the path to your CV (PDF, DOCX, MD or TXT). PDF and Word files are converted to Markdown by the AI. You see a short summary (name, roles) and can accept it, edit it in your editor, or try again.
 3. **Preferences.** A few questions the CV can't answer:
    - work mode (remote, hybrid, onsite)
@@ -247,7 +252,7 @@ These commands are listed in `jobhunter --help` but aren't ready yet:
 | `jobhunter map <source>`     | Add a job feed you found yourself (JSON or XML): the AI works out how to read it, and it joins your boards.                                      |
 | `jobhunter convert <source>` | Convert a job feed to Jobhunter's format with its saved mapping.                                                                                 |
 
-Also planned: more AI providers (Google Gemini first), using an existing spreadsheet as your tracking sheet, and Jobhunter's own Google sign-in.
+Also planned: using an existing spreadsheet as your tracking sheet, and Jobhunter's own Google sign-in.
 
 ## Your tracking sheet
 
@@ -338,7 +343,7 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 
 ## Privacy
 
-- **Anthropic** receives your CV when it's converted (PDF and DOCX only) and when your profile is written. On each `hunt` it also receives your candidate profile, CV and preferences along with the jobs being scored. See [Anthropic's privacy policy](https://www.anthropic.com/legal/privacy).
+- **The AI provider you chose** (Anthropic or Google) receives your CV when it's converted (PDF and DOCX only) and when your profile is written. On each `hunt` it also receives your candidate profile, CV and preferences along with the jobs being scored. See your provider's privacy policy, for example [Anthropic's](https://www.anthropic.com/legal/privacy) or [Google's Gemini API terms](https://ai.google.dev/gemini-api/terms).
 - **Your tracking sheet** stays on your computer when it's a local file. With a Google Sheet, **Google** stores it in your Drive, and Jobhunter can only reach the files it created.
 - **Job boards** are fetched anonymously. Nothing about you is sent to them.
 - Jobhunter itself has no server and collects nothing.
@@ -359,7 +364,7 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 
 **"Before hunting, set up …"** Part of the setup is missing. Run `jobhunter init` and finish the step it names.
 
-**The API key is rejected, or there's no credit.** Check your key and billing in the [Anthropic Console](https://console.anthropic.com/), then run `jobhunter init` → **AI provider, key or model**.
+**The API key is rejected, or there's no credit.** Check your key and billing with your provider (the [Anthropic Console](https://console.anthropic.com/) or [Google AI Studio](https://aistudio.google.com/)), then run `jobhunter init` → **AI provider, key or model**.
 
 **Too many good jobs in Skipped, or too many poor ones in To apply.** Lower or raise the cut-off with `--min-score`, or edit your candidate profile (`instructions.md`) to say more clearly what you want and what you don't.
 

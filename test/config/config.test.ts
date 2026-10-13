@@ -66,7 +66,7 @@ describe('config.json', () => {
 
   it('rejects unknown providers in the file', async () => {
     await mkdir(dirname(configFile()), { recursive: true });
-    await writeFile(configFile(), JSON.stringify({ ...config, provider: 'gemini' }));
+    await writeFile(configFile(), JSON.stringify({ ...config, provider: 'mistral' }));
     await expect(loadConfig()).rejects.toThrow(ConfigError);
   });
 });

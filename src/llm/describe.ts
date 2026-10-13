@@ -3,6 +3,7 @@ import type { LLMAdapter } from './types.js';
 
 export const PROVIDER_NAMES: Record<Provider, string> = {
   claude: 'Anthropic',
+  gemini: 'Google',
 };
 
 /** Which model is doing the work, for messages: `claude-sonnet-5-5 (Anthropic)`. */
