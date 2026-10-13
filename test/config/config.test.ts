@@ -69,4 +69,28 @@ describe('config.json', () => {
     await writeFile(configFile(), JSON.stringify({ ...config, provider: 'mistral' }));
     await expect(loadConfig()).rejects.toThrow(ConfigError);
   });
+
+  it('saves the base URL of an OpenAI-compatible provider', async () => {
+    const openai: Config = {
+      ...config,
+      provider: 'openai',
+      model: 'llama-4',
+      baseURL: 'http://localhost:11434/v1',
+    };
+    await saveConfig(openai);
+    expect(await loadConfig()).toEqual(openai);
+  });
+
+  it('refuses an OpenAI-compatible provider without a base URL', async () => {
+    await expect(saveConfig({ ...config, provider: 'openai' })).rejects.toThrow();
+    await mkdir(dirname(configFile()), { recursive: true });
+    await writeFile(configFile(), JSON.stringify({ ...config, provider: 'openai' }));
+    await expect(loadConfig()).rejects.toThrow(ConfigError);
+  });
+
+  it('refuses a base URL that is not http(s)', async () => {
+    await expect(
+      saveConfig({ ...config, provider: 'openai', baseURL: 'file:///etc/passwd' }),
+    ).rejects.toThrow();
+  });
 });

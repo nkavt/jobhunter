@@ -4,18 +4,26 @@ import { readJsonFile, writeJsonFile } from './fs.js';
 import { configFile } from './paths.js';
 import { ProfileNameSchema } from './profile.js';
 
-export const ProviderSchema = z.enum(['claude', 'gemini']);
+/** `openai` is any OpenAI-compatible API at a base URL the user enters (OpenRouter, Ollama…). */
+export const ProviderSchema = z.enum(['claude', 'gemini', 'openai']);
 export type Provider = z.infer<typeof ProviderSchema>;
 
 /** `config.json`: how Jobhunter runs and authenticates. Never holds user/profile data. */
-export const ConfigSchema = z.object({
-  version: z.literal(1),
-  provider: ProviderSchema,
-  model: z.string().min(1),
-  /** Asked in `init`; there is deliberately no environment variable fallback. */
-  apiKey: z.string().min(1),
-  activeProfile: ProfileNameSchema.default('default'),
-});
+export const ConfigSchema = z
+  .object({
+    version: z.literal(1),
+    provider: ProviderSchema,
+    model: z.string().min(1),
+    /** Asked in `init`; there is deliberately no environment variable fallback. */
+    apiKey: z.string().min(1),
+    /** Where the `openai` provider sends requests. The other providers have a fixed one. */
+    baseURL: z.url({ protocol: /^https?$/ }).optional(),
+    activeProfile: ProfileNameSchema.default('default'),
+  })
+  .refine((config) => config.provider !== 'openai' || config.baseURL !== undefined, {
+    message: 'The openai provider needs a baseURL',
+    path: ['baseURL'],
+  });
 export type Config = z.infer<typeof ConfigSchema>;
 
 export async function readConfig(): Promise<Config | undefined> {

@@ -8,4 +8,6 @@ export const DEFAULT_GEMINI_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_MODELS: Record<Provider, string> = {
   claude: DEFAULT_CLAUDE_MODEL,
   gemini: DEFAULT_GEMINI_MODEL,
+  // No sensible default across OpenAI-compatible hosts: the model is always picked in setup.
+  openai: '',
 };
