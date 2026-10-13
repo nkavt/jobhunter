@@ -31,7 +31,7 @@ Best matches:
 - **Everything lands in a spreadsheet** with status tabs, colours and dropdowns, ready for you to track your applications. By default it's an `.xlsx` file on your computer that you open in LibreOffice or Excel. No Google account needed.
 - **Your data stays yours.** Your keys, profile and sheet live on your machine. If you choose a Google Sheet instead, Jobhunter can only see the files it created in your Drive.
 
-> 🚧 **Early version (0.2).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
+> 🚧 **Early version (0.3).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
 
 > Jobhunter works with **Claude (Anthropic)** and **Gemini (Google)**.
 
