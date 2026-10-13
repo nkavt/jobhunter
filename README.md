@@ -31,7 +31,7 @@ Best matches:
 - **Everything lands in a spreadsheet** with status tabs, colours and dropdowns, ready for you to track your applications. By default it's an `.xlsx` file on your computer that you open in LibreOffice or Excel. No Google account needed.
 - **Your data stays yours.** Your keys, profile and sheet live on your machine. If you choose a Google Sheet instead, Jobhunter can only see the files it created in your Drive.
 
-> 🚧 **Early version (0.2).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
+> 🚧 **Early version (0.3).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
 
 > Jobhunter works with **Claude (Anthropic)** and **Gemini (Google)**.
 
@@ -61,7 +61,7 @@ Best matches:
   - **Anthropic (Claude)**, from the [Anthropic Console](https://console.anthropic.com/settings/keys).
   - **Google (Gemini)**, from [Google AI Studio](https://aistudio.google.com/apikey).
 
-  > 💡 **Try Jobhunter for free with Gemini.** As of October 2026, the Gemini API has a [free tier](https://ai.google.dev/gemini-api/docs/pricing) that includes the Flash and Flash-Lite models (with rate limits), which is enough to try `init` and a few `hunt` runs. Google may change this, so check the pricing page. On the free tier, **Google may use what you send (including your CV) to improve its products**. The paid tier doesn't.
+  > 💡 **Try Jobhunter for free with Gemini.** As of October 2026, the Gemini API has a [free tier](https://ai.google.dev/gemini-api/docs/pricing) for some of its models, with rate limits. Google may change this, so check the pricing page. On the free tier, **Google may use what you send (including your CV) to improve its products**. The paid tier doesn't.
 
   Paid usage is billed by the provider to your account. The cost depends on the model you pick and how many jobs are scored; each run prints the AI tokens it used.
 
@@ -254,7 +254,7 @@ These commands are listed in `jobhunter --help` but aren't ready yet:
 | `jobhunter map <source>`     | Add a job feed you found yourself (JSON or XML): the AI works out how to read it, and it joins your boards.                                      |
 | `jobhunter convert <source>` | Convert a job feed to Jobhunter's format with its saved mapping.                                                                                 |
 
-Also planned: using an existing spreadsheet as your tracking sheet, and Jobhunter's own Google sign-in.
+Also planned: support for OpenAI-compatible APIs, to use OpenAI and other models (for example through OpenRouter, or locally with Ollama), using an existing spreadsheet as your tracking sheet, and Jobhunter's own Google sign-in.
 
 ## Your tracking sheet
 
