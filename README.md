@@ -254,7 +254,7 @@ These commands are listed in `jobhunter --help` but aren't ready yet:
 | `jobhunter map <source>`     | Add a job feed you found yourself (JSON or XML): the AI works out how to read it, and it joins your boards.                                      |
 | `jobhunter convert <source>` | Convert a job feed to Jobhunter's format with its saved mapping.                                                                                 |
 
-Also planned: using an existing spreadsheet as your tracking sheet, and Jobhunter's own Google sign-in.
+Also planned: support for OpenAI-compatible APIs, to use OpenAI and other models (for example through OpenRouter, or locally with Ollama), using an existing spreadsheet as your tracking sheet, and Jobhunter's own Google sign-in.
 
 ## Your tracking sheet
 
