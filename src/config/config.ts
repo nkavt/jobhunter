@@ -18,6 +18,11 @@ export const ConfigSchema = z
     apiKey: z.string().min(1),
     /** Where the `openai` provider sends requests. The other providers have a fixed one. */
     baseURL: z.url({ protocol: /^https?$/ }).optional(),
+    /**
+     * Whether a model on a local server may think before answering; asked in `init`, for local
+     * servers only. Unset: off on a local server, the provider's own default everywhere else.
+     */
+    thinking: z.boolean().optional(),
     activeProfile: ProfileNameSchema.default('default'),
   })
   .refine((config) => config.provider !== 'openai' || config.baseURL !== undefined, {

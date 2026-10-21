@@ -162,7 +162,7 @@ Sets everything up. Run it once to start. Run it again any time to change one pa
 
 **On first run** it goes through every step:
 
-1. **AI provider, key and model.** Choose Anthropic (Claude), Google (Gemini), or an OpenAI-compatible API (then also enter its base URL). Paste your API key and pick a model from the list your key can use; for an OpenAI-compatible API you can also type a model ID it doesn't list. Jobhunter checks that the key and model actually work before going on.
+1. **AI provider, key and model.** Choose Anthropic (Claude), Google (Gemini), or an OpenAI-compatible API (then also enter its base URL; for a server on your own machine or network, such as Ollama, you also choose whether the model may think before answering, which is off by default because it's often many times slower). Paste your API key and pick a model from the list your key can use; for an OpenAI-compatible API you can also type a model ID it doesn't list. Jobhunter checks that the key and model actually work before going on.
 2. **CV.** Give the path to your CV (PDF, DOCX, MD or TXT). PDF and Word files are converted to Markdown by the AI. You see a short summary (name, roles) and can accept it, edit it in your editor, or try again.
 3. **Preferences.** A few questions the CV can't answer:
    - work mode (remote, hybrid, onsite)
@@ -216,14 +216,15 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
 **Options**
 
-| Option                | What it does                                                                                    |
-| --------------------- | ----------------------------------------------------------------------------------------------- |
-| `-f, --force`         | Check every board, even ones checked in the last 6 hours.                                       |
-| `--dry-run`           | Show the results without writing anything to your sheet. Doesn't need Google to be connected.   |
-| `--no-ai`             | Skip the AI: every job that passes the filters goes to To apply, without a score or note. Free. |
-| `--max-ai-jobs <n>`   | Score at most this many jobs per run (default 100). The rest wait for the next run.             |
-| `--since <days>`      | Ignore jobs posted more than this many days ago (default 30).                                   |
-| `--min-score <score>` | The score needed for To apply, for this run only (0–100).                                       |
+| Option                | What it does                                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------------- |
+| `-f, --force`         | Check every board, even ones checked in the last 6 hours.                                          |
+| `--dry-run`           | Show the results without writing anything to your sheet. Doesn't need Google to be connected.      |
+| `--no-ai`             | Skip the AI: every job that passes the filters goes to To apply, without a score or note. Free.    |
+| `--max-ai-jobs <n>`   | Score at most this many jobs per run (default 100). The rest wait for the next run.                |
+| `--since <days>`      | Ignore jobs posted more than this many days ago (default 30).                                      |
+| `--min-score <score>` | The score needed for To apply, for this run only (0–100).                                          |
+| `--parallel <n>`      | AI calls made at the same time (1–16). Default 4, or 1 for a model on your own machine or network. |
 
 Examples:
 

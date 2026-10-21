@@ -145,6 +145,8 @@ describe('jobhunter init: AI setup', () => {
     await runInit({ openBrowser: () => undefined, ui, connect });
 
     expect(ui.prompts.find((p) => p.type === 'password')?.message).toBe('openrouter.ai API key');
+    // Thinking is only asked about for a local server.
+    expect(ui.prompts.some((p) => p.type === 'confirm')).toBe(false);
     expect(connections[0]).toEqual({
       provider: 'openai',
       baseURL: 'https://openrouter.ai/api/v1',
@@ -166,6 +168,7 @@ describe('jobhunter init: AI setup', () => {
     const ui = new FakeUi([
       'openai',
       'http://localhost:11434/v1',
+      false,
       'ollama',
       typeModel,
       'qwen3:32b',
@@ -180,12 +183,44 @@ describe('jobhunter init: AI setup', () => {
 
   it('asks for the model ID straight away when the OpenAI-compatible API lists none', async () => {
     const connect = (): LLMAdapter => new FakeLLM({ models: [] });
-    const ui = new FakeUi(['openai', 'http://localhost:8000/v1', 'key', 'my-model', '', 'skip']);
+    const ui = new FakeUi([
+      'openai',
+      'http://localhost:8000/v1',
+      false,
+      'key',
+      'my-model',
+      '',
+      'skip',
+    ]);
 
     await runInit({ openBrowser: () => undefined, ui, connect });
 
     expect(ui.prompts.some((p) => p.message === 'Model')).toBe(false);
     expect((await readConfig())?.model).toBe('my-model');
+  });
+
+  it('asks whether a model on a local server may think, and saves the answer', async () => {
+    const connections: Connection[] = [];
+    const connect = (connection: Connection): LLMAdapter => {
+      connections.push(connection);
+      return new FakeLLM({ models: [{ id: 'qwen3', displayName: 'qwen3' }] });
+    };
+    const ui = new FakeUi([
+      'openai',
+      'http://localhost:11434/v1',
+      true,
+      'ollama',
+      'qwen3',
+      '',
+      'skip',
+    ]);
+
+    await runInit({ openBrowser: () => undefined, ui, connect });
+
+    const thinking = ui.prompts.find((p) => p.type === 'confirm');
+    expect(thinking?.message).toMatch(/^Let the model think before answering\?/);
+    expect(connections[0]).toMatchObject({ thinking: true });
+    expect(await readConfig()).toMatchObject({ provider: 'openai', thinking: true });
   });
 
   it('asks again when the base URL is not an http(s) URL', async () => {
@@ -351,18 +386,19 @@ describe('jobhunter init: AI setup', () => {
       });
     });
 
-    it('keeps the saved base URL of an OpenAI-compatible API on Enter', async () => {
+    it('keeps the saved base URL and thinking choice of an OpenAI-compatible API on Enter', async () => {
       const saved: Config = {
         ...existingConfig,
         provider: 'openai',
         baseURL: 'http://localhost:11434/v1',
+        thinking: true,
         model: 'llama-4',
         apiKey: 'ollama-key',
       };
       await saveConfig(saved);
       const connect = (): LLMAdapter =>
         new FakeLLM({ models: [{ id: 'llama-4', displayName: 'llama-4' }] });
-      const ui = new FakeUi(['ai', DEFAULT, DEFAULT, '', DEFAULT]);
+      const ui = new FakeUi(['ai', DEFAULT, DEFAULT, DEFAULT, '', DEFAULT]);
 
       await runInit({ openBrowser: () => undefined, ui, connect });
 

@@ -3,6 +3,7 @@ import { extractText } from 'unpdf';
 import { renderSnippet } from '../../prompts/index.js';
 import { getProviderName } from '../describe.js';
 import { LLMError, WebSearchUnavailableError } from '../errors.js';
+import { isLocalURL } from '../local.js';
 import { asObjectSchema, generateValidated, parseJson, toJsonSchema } from '../structured.js';
 import type {
   FileInput,
@@ -23,8 +24,8 @@ const CLOUD_TIMEOUT_MS = 120_000;
 const LOCAL_TIMEOUT_MS = 10 * 60_000;
 /**
  * Local thinking models (Qwen, DeepSeek-R1…) count their reasoning against `max_tokens`, so a
- * local server gets this on top of the answer's limit, for when thinking can't be turned off.
- * Not for cloud APIs: they reject a limit above the model's output cap, which is 16k on some models.
+ * local server gets this on top of the answer's limit, for when thinking is on or can't be turned
+ * off. Not for cloud APIs: they reject a limit above the model's output cap, 16k on some models.
  */
 const LOCAL_THINKING_ALLOWANCE = 16_384;
 
@@ -38,6 +39,12 @@ export interface OpenAIAdapterOptions {
   maxRetries?: number;
   /** Default: 2 minutes, 10 for a local server. */
   timeoutMs?: number;
+  /**
+   * `false` asks the server to skip thinking (`reasoning_effort: none`), `true` leaves it to the
+   * model. Default: off on a local server, where thinking takes minutes per batch; the API's own
+   * default elsewhere.
+   */
+  thinking?: boolean;
 }
 
 type ChatParams = OpenAI.ChatCompletionCreateParamsNonStreaming;
@@ -53,10 +60,9 @@ export class OpenAIAdapter implements LLMAdapter {
   private readonly client: OpenAI;
   private readonly timeoutMs: number;
   private readonly local: boolean;
-  /**
-   * Thinking makes a local model many times slower (minutes per batch on a laptop), so it's
-   * turned off there. Set back to false if the server rejects the setting.
-   */
+  /** The user chose to let the model think. */
+  private readonly thinking: boolean;
+  /** Sends `reasoning_effort: none`. Set back to false if the server rejects the setting. */
   private thinkingOff: boolean;
 
   constructor(options: OpenAIAdapterOptions) {
@@ -65,7 +71,8 @@ export class OpenAIAdapter implements LLMAdapter {
     // A local server is slow rather than flaky: retrying a timed-out request only repeats the wait.
     const local = isLocalURL(options.baseURL);
     this.local = local;
-    this.thinkingOff = local;
+    this.thinking = options.thinking ?? !local;
+    this.thinkingOff = !this.thinking;
     this.timeoutMs = options.timeoutMs ?? (local ? LOCAL_TIMEOUT_MS : CLOUD_TIMEOUT_MS);
     // Everything is passed explicitly so OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_ORG_ID /
     // OPENAI_PROJECT_ID in the environment are never picked up: the key lives in config.json only.
@@ -224,10 +231,19 @@ export class OpenAIAdapter implements LLMAdapter {
   private assertComplete(response: OpenAI.ChatCompletion, request: TextRequest): void {
     if (response.choices[0]?.finish_reason !== 'length') return;
     const limit = String(request.maxTokens ?? DEFAULT_MAX_TOKENS);
+    if (!this.local) {
+      throw new LLMError(
+        `The response was cut off at ${limit} tokens. Try a larger limit.`,
+        this.provider,
+      );
+    }
+    // Thinking on by choice can be turned off in init; on because the server ignores the
+    // setting, only another model helps.
+    const hint = this.thinking
+      ? 'Turn thinking off with `jobhunter init` → AI provider, key or model, or try a model that thinks less.'
+      : 'Try a model that thinks less.';
     throw new LLMError(
-      this.local
-        ? `The model ran out of tokens before finishing its answer (${limit}, plus ${String(LOCAL_THINKING_ALLOWANCE)} for thinking). Turn thinking off for this model, or try one that thinks less.`
-        : `The response was cut off at ${limit} tokens. Try a larger limit.`,
+      `The model ran out of tokens before finishing its answer (${limit}, plus ${String(LOCAL_THINKING_ALLOWANCE)} for thinking). ${hint}`,
       this.provider,
     );
   }
@@ -279,23 +295,4 @@ function toModelInfo(model: OpenAI.Model): ModelInfo {
     // Some compatible APIs leave `created` out or set it to 0.
     ...(model.created ? { createdAt: new Date(model.created * 1000).toISOString() } : {}),
   };
-}
-
-/** The user's own machine or network: localhost, `*.local`, loopback and private IPs. */
-export function isLocalURL(url: string): boolean {
-  let host: string;
-  try {
-    host = new URL(url).hostname.replace(/^\[|\]$/g, '');
-  } catch {
-    return false;
-  }
-  return (
-    host === 'localhost' ||
-    host.endsWith('.localhost') ||
-    host.endsWith('.local') ||
-    host === '::1' ||
-    /^(127|10)\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-  );
 }

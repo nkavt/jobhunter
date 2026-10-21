@@ -3,6 +3,7 @@ import {
   DEFAULT_MODELS,
   getProviderName,
   InvalidKeyError,
+  isLocalURL,
   LLMError,
   NetworkError,
   RateLimitError,
@@ -37,20 +38,18 @@ export class SetupAbortedError extends Error {
   }
 }
 
-type AiConfig = Pick<Config, 'provider' | 'apiKey' | 'model' | 'baseURL'>;
+type AiConfig = Pick<Config, 'provider' | 'apiKey' | 'model' | 'baseURL' | 'thinking'>;
 /** Where to connect, before the key is known. */
 type Endpoint = Omit<Connection, 'apiKey'>;
 
 /**
- * Provider (+ base URL for an OpenAI-compatible API) → API key → key test + live model list
- * → model → access test. Returns the AI part of the config; nothing is saved here.
+ * Provider (+ base URL for an OpenAI-compatible API, and thinking on or off for a local one)
+ * → API key → key test + live model list → model → access test. Returns the AI part of the config; nothing is saved here.
  */
 export async function setupAi(deps: AiSetupDeps, existing?: Config): Promise<AiConfig> {
   const provider = await chooseProvider(deps.ui, existing?.provider);
   const endpoint: Endpoint =
-    provider === 'openai'
-      ? { provider, baseURL: await askBaseURL(deps.ui, existing?.baseURL) }
-      : { provider };
+    provider === 'openai' ? await askEndpoint(deps.ui, existing) : { provider };
   // A saved key or model only makes sense for the same provider at the same address.
   const same =
     existing?.provider === endpoint.provider && existing.baseURL === endpoint.baseURL
@@ -75,6 +74,17 @@ async function chooseProvider(ui: Ui, saved?: Provider): Promise<Provider> {
     ],
     default: saved ?? 'claude',
   });
+}
+
+/** Base URL, and for a server on the user's own machine or network, whether the model may think. */
+async function askEndpoint(ui: Ui, existing?: Config): Promise<Endpoint> {
+  const baseURL = await askBaseURL(ui, existing?.baseURL);
+  if (!isLocalURL(baseURL)) return { provider: 'openai', baseURL };
+  const thinking = await ui.confirm({
+    message: `Let the model think before answering? ${dim('(better answers, but often many times slower on your own machine)')}`,
+    default: existing?.thinking ?? false,
+  });
+  return { provider: 'openai', baseURL, thinking };
 }
 
 async function askBaseURL(ui: Ui, saved?: string): Promise<string> {

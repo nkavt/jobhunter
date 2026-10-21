@@ -13,7 +13,8 @@ import {
   WebSearchUnavailableError,
   type LLMAdapter,
 } from '../../../src/llm/index.js';
-import { isLocalURL, OpenAIAdapter } from '../../../src/llm/openai/adapter.js';
+import { isLocalURL } from '../../../src/llm/local.js';
+import { OpenAIAdapter } from '../../../src/llm/openai/adapter.js';
 import {
   apiError,
   chatHandler,
@@ -174,14 +175,33 @@ describe('OpenAIAdapter: slow and local servers', () => {
 
   it('says thinking used up the tokens when a local model is cut off', async () => {
     server.use(chatHandler(LOCAL, completion('', { finish_reason: 'length' })).handler);
-    const local = new OpenAIAdapter({ apiKey: 'x', baseURL: LOCAL, model: 'qwen' });
+    const thinking = new OpenAIAdapter({
+      apiKey: 'x',
+      baseURL: LOCAL,
+      model: 'qwen',
+      thinking: true,
+    });
+    const off = new OpenAIAdapter({ apiKey: 'x', baseURL: LOCAL, model: 'qwen' });
 
-    await expect(local.generateText({ prompt: 'x', maxTokens: 100 })).rejects.toThrow(
-      'ran out of tokens before finishing its answer (100, plus 16384 for thinking). Turn thinking off',
+    await expect(thinking.generateText({ prompt: 'x', maxTokens: 100 })).rejects.toThrow(
+      'ran out of tokens before finishing its answer (100, plus 16384 for thinking). Turn thinking off with `jobhunter init`',
+    );
+    await expect(off.generateText({ prompt: 'x', maxTokens: 100 })).rejects.toThrow(
+      'Try a model that thinks less.',
     );
   });
 
-  it('turns thinking off on a local server, and not on a cloud API', async () => {
+  it('lets a local model think when the user chose to', async () => {
+    const { handler, requests } = chatHandler(LOCAL, completion('Hi'));
+    server.use(handler);
+    const local = new OpenAIAdapter({ apiKey: 'x', baseURL: LOCAL, model: 'qwen', thinking: true });
+
+    await local.generateText({ prompt: 'Hi' });
+
+    expect(requests[0]?.body).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('turns thinking off on a local server by default, and not on a cloud API', async () => {
     const localChat = chatHandler(LOCAL, completion('Hi'));
     const cloudChat = chatHandler(BASE, completion('Hi'));
     server.use(localChat.handler, cloudChat.handler);

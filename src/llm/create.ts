@@ -13,9 +13,9 @@ import type {
   TextResult,
 } from './types.js';
 
-export type AdapterConfig = Pick<Config, 'provider' | 'apiKey' | 'model' | 'baseURL'>;
+export type AdapterConfig = Pick<Config, 'provider' | 'apiKey' | 'model' | 'baseURL' | 'thinking'>;
 /** What reaching a provider takes, before a model is picked. */
-export type Connection = Pick<Config, 'provider' | 'apiKey' | 'baseURL'>;
+export type Connection = Pick<Config, 'provider' | 'apiKey' | 'baseURL' | 'thinking'>;
 
 /**
  * One loader per provider; adding a provider is a new entry here. Each imports its adapter
@@ -30,12 +30,17 @@ const loaders: Record<Provider, (connection: Connection, model: string) => Promi
     const { GeminiAdapter } = await import('./gemini/adapter.js');
     return new GeminiAdapter({ apiKey, model });
   },
-  openai: async ({ apiKey, baseURL }, model) => {
+  openai: async ({ apiKey, baseURL, thinking }, model) => {
     if (baseURL === undefined) {
       throw new LLMError('An OpenAI-compatible provider needs a base URL.', 'openai');
     }
     const { OpenAIAdapter } = await import('./openai/adapter.js');
-    return new OpenAIAdapter({ apiKey, baseURL, ...(model ? { model } : {}) });
+    return new OpenAIAdapter({
+      apiKey,
+      baseURL,
+      ...(model ? { model } : {}),
+      ...(thinking !== undefined ? { thinking } : {}),
+    });
   },
 };
 
