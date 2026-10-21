@@ -15,6 +15,10 @@ export interface ErrorContext {
   providerName: string;
   /** The model the failed request used, if any. */
   model?: string;
+  /** How long a request may take, for the timeout message. */
+  timeoutMs?: number;
+  /** The API runs on the user's own machine or network. */
+  local?: boolean;
 }
 
 /** Translate an OpenAI SDK error into one of our provider-agnostic errors. */
@@ -26,6 +30,14 @@ export function mapOpenAIError(error: unknown, context: ErrorContext): Error {
   const message = apiMessage(error);
   const options = { cause: error };
 
+  if (error instanceof OpenAI.APIConnectionTimeoutError) {
+    const limit =
+      context.timeoutMs === undefined ? '' : ` within ${formatDuration(context.timeoutMs)}`;
+    const hint = context.local
+      ? 'A smaller model, or one with thinking turned off, answers faster.'
+      : 'Try again in a moment.';
+    return new NetworkError(`${name} didn't answer${limit}. ${hint}`, provider, options);
+  }
   if (error instanceof OpenAI.APIConnectionError) {
     return new NetworkError(`Couldn't reach ${name}: ${message}`, provider, options);
   }
@@ -95,4 +107,11 @@ function apiMessage(error: { message: string; error?: unknown }): string {
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
+}
+
+function formatDuration(ms: number): string {
+  const minutes = ms / 60_000;
+  return minutes >= 1 && Number.isInteger(minutes)
+    ? `${String(minutes)} minute${minutes === 1 ? '' : 's'}`
+    : `${String(Math.round(ms / 1000))} seconds`;
 }

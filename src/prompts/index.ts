@@ -1,3 +1,9 @@
-export { PROMPTS } from './registry.js';
-export { PromptError, renderPrompt, renderSystemPrompt, renderUserPrompt } from './render.js';
-export type { PromptName, PromptTemplate, PromptValues } from './types.js';
+export { PROMPTS, SNIPPETS } from './registry.js';
+export {
+  PromptError,
+  renderPrompt,
+  renderSnippet,
+  renderSystemPrompt,
+  renderUserPrompt,
+} from './render.js';
+export type { PromptName, PromptTemplate, PromptValues, SnippetName } from './types.js';

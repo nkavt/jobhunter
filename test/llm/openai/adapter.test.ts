@@ -1,4 +1,4 @@
-import { http, HttpResponse } from 'msw';
+import { delay, http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
@@ -13,7 +13,7 @@ import {
   WebSearchUnavailableError,
   type LLMAdapter,
 } from '../../../src/llm/index.js';
-import { OpenAIAdapter } from '../../../src/llm/openai/adapter.js';
+import { isLocalURL, OpenAIAdapter } from '../../../src/llm/openai/adapter.js';
 import {
   apiError,
   chatHandler,
@@ -21,6 +21,7 @@ import {
   modelsHandler,
   useMockServer,
 } from '../../helpers/openai-mock.js';
+import { pdfWithText } from '../../helpers/pdf.js';
 
 const BASE = 'https://llm.example.com/v1';
 const server = useMockServer();
@@ -109,6 +110,118 @@ describe('OpenAIAdapter: models and key test', () => {
   });
 });
 
+describe('OpenAIAdapter: slow and local servers', () => {
+  const LOCAL = 'http://localhost:11434/v1';
+  const slowChat = (baseURL: string) =>
+    http.post(`${baseURL}/chat/completions`, async () => {
+      await delay(200);
+      return HttpResponse.json(completion('late'));
+    });
+
+  it('tells local servers apart from cloud APIs', () => {
+    for (const url of [
+      LOCAL,
+      'http://127.0.0.1:1234/v1',
+      'http://[::1]:8080/v1',
+      'http://mac-mini.local:11434/v1',
+      'http://192.168.1.20:11434/v1',
+      'http://10.0.0.5/v1',
+      'http://172.20.0.2/v1',
+    ]) {
+      expect(isLocalURL(url), url).toBe(true);
+    }
+    for (const url of [BASE, 'https://openrouter.ai/api/v1', 'http://172.32.0.1/v1', 'nope']) {
+      expect(isLocalURL(url), url).toBe(false);
+    }
+  });
+
+  it('says how long it waited when a cloud API times out', async () => {
+    server.use(slowChat(BASE));
+    const error = adapter({ timeoutMs: 50 }).generateText({ prompt: 'Hi' });
+    await expect(error).rejects.toThrow(NetworkError);
+    await expect(error).rejects.toThrow(/^llm\.example\.com didn't answer within .+\. Try again/);
+  });
+
+  it('suggests a faster model when a local server times out, and does not retry it', async () => {
+    let calls = 0;
+    server.use(
+      http.post(`${LOCAL}/chat/completions`, async () => {
+        calls += 1;
+        await delay(200);
+        return HttpResponse.json(completion('late'));
+      }),
+    );
+    const local = new OpenAIAdapter({ apiKey: 'x', baseURL: LOCAL, model: 'qwen', timeoutMs: 50 });
+
+    await expect(local.generateText({ prompt: 'Hi' })).rejects.toThrow(
+      'A smaller model, or one with thinking turned off, answers faster.',
+    );
+    expect(calls).toBe(1);
+  });
+
+  it('leaves a local thinking model room to think, on top of the answer', async () => {
+    const localChat = chatHandler(LOCAL, completion('Hi'));
+    const cloudChat = chatHandler(BASE, completion('Hi'));
+    server.use(localChat.handler, cloudChat.handler);
+    const local = new OpenAIAdapter({ apiKey: 'x', baseURL: LOCAL, model: 'qwen' });
+
+    await local.generateText({ prompt: 'Hi', maxTokens: 8192 });
+    await adapter().generateText({ prompt: 'Hi', maxTokens: 8192 });
+
+    expect(localChat.requests[0]?.body).toMatchObject({ max_tokens: 8192 + 16_384 });
+    expect(cloudChat.requests[0]?.body).toMatchObject({ max_tokens: 8192 });
+  });
+
+  it('says thinking used up the tokens when a local model is cut off', async () => {
+    server.use(chatHandler(LOCAL, completion('', { finish_reason: 'length' })).handler);
+    const local = new OpenAIAdapter({ apiKey: 'x', baseURL: LOCAL, model: 'qwen' });
+
+    await expect(local.generateText({ prompt: 'x', maxTokens: 100 })).rejects.toThrow(
+      'ran out of tokens before finishing its answer (100, plus 16384 for thinking). Turn thinking off',
+    );
+  });
+
+  it('turns thinking off on a local server, and not on a cloud API', async () => {
+    const localChat = chatHandler(LOCAL, completion('Hi'));
+    const cloudChat = chatHandler(BASE, completion('Hi'));
+    server.use(localChat.handler, cloudChat.handler);
+    const local = new OpenAIAdapter({ apiKey: 'x', baseURL: LOCAL, model: 'qwen' });
+
+    await local.generateText({ prompt: 'Hi' });
+    await adapter().generateText({ prompt: 'Hi' });
+
+    expect(localChat.requests[0]?.body).toMatchObject({ reasoning_effort: 'none' });
+    expect(cloudChat.requests[0]?.body).not.toHaveProperty('reasoning_effort');
+  });
+
+  it('stops asking a local server to skip thinking once it rejects the setting', async () => {
+    const { handler, requests } = chatHandler(
+      LOCAL,
+      apiError(400, 'Unrecognized request argument supplied: reasoning_effort'),
+      completion('Hi'),
+      completion('Again'),
+    );
+    server.use(handler);
+    const local = new OpenAIAdapter({ apiKey: 'x', baseURL: LOCAL, model: 'llama' });
+
+    await expect(local.generateText({ prompt: 'Hi' })).resolves.toMatchObject({ text: 'Hi' });
+    await local.generateText({ prompt: 'Hi' });
+
+    expect(requests.map((request) => 'reasoning_effort' in request.body)).toEqual([
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it('drops a leading <think> block from the answer', async () => {
+    server.use(chatHandler(LOCAL, completion('<think>\nHmm, a CV.\n</think>\n\n# Alex')).handler);
+    const local = new OpenAIAdapter({ apiKey: 'x', baseURL: LOCAL, model: 'qwen' });
+
+    await expect(local.generateText({ prompt: 'x' })).resolves.toMatchObject({ text: '# Alex' });
+  });
+});
+
 describe('OpenAIAdapter: model access check', () => {
   it('sends a tiny request to the chosen model', async () => {
     const { handler, requests } = chatHandler(BASE, completion('Hi'));
@@ -193,24 +306,37 @@ describe('OpenAIAdapter: generateText', () => {
     });
   });
 
-  it('attaches PDFs as files and images as data URLs', async () => {
+  it('sends the text of PDFs, since most compatible APIs take no PDF parts, and images as data URLs', async () => {
     const { handler, requests } = chatHandler(BASE, completion('# CV'));
     server.use(handler);
 
     await adapter().generateText({
       prompt: 'Convert',
       files: [
-        { mimeType: 'application/pdf', data: new Uint8Array([1, 2, 3]), name: 'cv.pdf' },
+        { mimeType: 'application/pdf', data: pdfWithText('Alex Doe, Engineer'), name: 'cv.pdf' },
         { mimeType: 'image/png', data: new Uint8Array([4]) },
       ],
     });
 
     const [user] = requests[0]?.body.messages as { content: unknown[] }[];
     expect(user?.content).toEqual([
-      { type: 'file', file: { filename: 'cv.pdf', file_data: 'data:application/pdf;base64,AQID' } },
+      { type: 'text', text: '<document name="cv.pdf">\nAlex Doe, Engineer\n</document>' },
       { type: 'image_url', image_url: { url: 'data:image/png;base64,BA==' } },
       { type: 'text', text: 'Convert' },
     ]);
+  });
+
+  it('fails clearly on a PDF it cannot read, or one without text', async () => {
+    const send = (data: Uint8Array) =>
+      adapter().generateText({
+        prompt: 'x',
+        files: [{ mimeType: 'application/pdf', data, name: 'cv.pdf' }],
+      });
+
+    await expect(send(new Uint8Array([1, 2, 3]))).rejects.toThrow(
+      "Can't read cv.pdf. Is it a valid PDF?",
+    );
+    await expect(send(pdfWithText(''))).rejects.toThrow('No text found in cv.pdf');
   });
 
   it('rejects file types it cannot send', async () => {
@@ -244,6 +370,20 @@ describe('OpenAIAdapter: generateJSON', () => {
       type: 'json_schema',
       json_schema: { name: 'fit', schema: { type: 'object' } },
     });
+  });
+
+  it('also puts the schema in the prompt, for hosts that ignore response_format', async () => {
+    const { handler, requests } = chatHandler(BASE, completion('{"score": 80}'));
+    server.use(handler);
+
+    await adapter().generateJSON({ system: 'Rules', prompt: 'Score', schema });
+
+    const [system, user] = requests[0]?.body.messages as { content: string }[];
+    expect(system?.content).toBe('Rules');
+    expect(user?.content).toMatch(
+      /^Score\n\nAnswer with only a JSON object that matches this JSON Schema:\n\n```json\n\{.*\}\n```$/s,
+    );
+    expect(user?.content).toContain('"score"');
   });
 
   it('accepts JSON wrapped in a code fence', async () => {

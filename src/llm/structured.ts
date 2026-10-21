@@ -1,5 +1,6 @@
 import { z, type ZodType } from 'zod';
 import type { Provider } from '../config/config.js';
+import { renderSnippet } from '../prompts/index.js';
 import { InvalidResponseError } from './errors.js';
 import type { JsonResult, Usage } from './types.js';
 import { addUsage } from './usage.js';
@@ -77,7 +78,9 @@ export async function generateValidated<T>(
     const feedback =
       i === 0
         ? undefined
-        : `Your previous answer did not match the required format:\n${issues.map((issue) => `- ${issue}`).join('\n')}\nReturn a corrected answer.`;
+        : renderSnippet('retry-feedback', {
+            issues: issues.map((issue) => `- ${issue}`).join('\n'),
+          });
     const { value, usage } = await attempt(feedback);
     usages.push(usage);
 

@@ -5,7 +5,9 @@ import {
   PROMPTS,
   PromptError,
   renderPrompt,
+  renderSnippet,
   renderSystemPrompt,
+  SNIPPETS,
   renderUserPrompt,
 } from '../../src/prompts/index.js';
 
@@ -48,7 +50,7 @@ describe('prompt files', () => {
   it('registers every folder in src/prompts, each with system.md and user.md', async () => {
     const entries = await readdir(PROMPTS_DIR, { withFileTypes: true });
     const folders = entries
-      .filter((e) => e.isDirectory())
+      .filter((e) => e.isDirectory() && e.name !== 'shared')
       .map((e) => e.name)
       .sort();
     expect(Object.keys(PROMPTS).sort()).toEqual(folders);
@@ -64,6 +66,23 @@ describe('prompt files', () => {
         'user.md',
       ]);
     }
+  });
+
+  it('registers every snippet in src/prompts/shared', async () => {
+    const files = (await readdir(`${PROMPTS_DIR}shared`)).sort();
+    expect(Object.keys(SNIPPETS).map((name) => `${name}.md`)).toEqual(files);
+    for (const [name, text] of Object.entries(SNIPPETS)) {
+      expect(text.trim(), `shared/${name}.md`).not.toBe('');
+    }
+  });
+
+  it('fills snippets like prompts', () => {
+    expect(renderSnippet('retry-feedback', { issues: '- score: too big' })).toBe(
+      'Your previous answer did not match the required format:\n- score: too big\nReturn a corrected answer.',
+    );
+    expect(() => renderSnippet('json-schema')).toThrow(
+      'shared/json-schema.md: missing value for {{schema}}',
+    );
   });
 
   it('loads every prompt as non-empty text', () => {

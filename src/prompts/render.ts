@@ -1,5 +1,5 @@
-import { PROMPTS } from './registry.js';
-import type { PromptName, PromptValues } from './types.js';
+import { PROMPTS, SNIPPETS } from './registry.js';
+import type { PromptName, PromptValues, SnippetName } from './types.js';
 
 /** A prompt template and the values passed to it don't match. */
 export class PromptError extends Error {
@@ -40,4 +40,8 @@ export function renderSystemPrompt(name: PromptName, values?: PromptValues): str
 
 export function renderUserPrompt(name: PromptName, values?: PromptValues): string {
   return renderPrompt(PROMPTS[name].user, values, `${name}/user.md`);
+}
+
+export function renderSnippet(name: SnippetName, values?: PromptValues): string {
+  return renderPrompt(SNIPPETS[name], values, `shared/${name}.md`);
 }
