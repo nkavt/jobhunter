@@ -357,6 +357,24 @@ describe('jobhunter hunt', () => {
     });
     const prompt = 'jobs passed your filters, more than the 100 a run scores by default';
 
+    it('says how many postings there were when some are the same job', async () => {
+      await setUp();
+      const copies = ['Germany', 'Spain', 'Italy'].map((place) =>
+        job(place, {
+          title: `Senior Frontend Engineer - ${place}`,
+          company: 'Bjak',
+          location: { text: place, regions: [place] },
+        }),
+      );
+      const { deps: d } = deps({ 'board-a': [...many()['board-a'], ...copies] });
+      const ui = new FakeUi([DEFAULT_MAX_AI_JOBS]);
+      await runHunt({ ...d, ui, interactive: true });
+
+      expect(ui.prompts.find((p) => p.message.includes('jobs passed'))?.message).toMatch(
+        /^106 jobs passed your filters \(108 postings: the same job in several locations counts once\), more than the 100/,
+      );
+    });
+
     it('asks in a terminal, and can score them all', async () => {
       await setUp();
       const { deps: d, tracker } = deps(many());
