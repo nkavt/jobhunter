@@ -219,7 +219,7 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
    Ignored jobs go to the **Ignored** tab with the reason. When a job doesn't say something (no salary, say), it isn't ignored for that.
 
-4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement. Jobs are sent in batches of 5, with up to four batches at a time. A run scores at most 100 jobs. When more pass your filters and you're running `hunt` in a terminal, it asks whether to score them all (with the number of AI requests that takes), only the newest 100, or another number you type in; from a script or cron it keeps the limit. The jobs over the limit aren't added to your sheet, and a later run picks them up while they're still listed.
+4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement. Jobs are sent in batches of 5, with up to four batches at a time. A run scores at most 100 jobs. When more pass your filters and you're running `hunt` in a terminal, it asks whether to score them all (with the number of AI requests that takes), only the newest 100, or another number you type in; from a script or cron it keeps the limit. The jobs over the limit aren't added to your sheet, and a later run picks them up while they're still listed. To score them right away, run `jobhunter hunt --force --max-ai-jobs <n>` (`--force`, because every source was just checked).
 5. **Write to your sheet.** Jobs scoring at or above your cut-off (50 by default) go to **To apply**; the rest go to **Skipped**, with the note explaining why.
 6. **Print a summary:** how many jobs were found, known, ignored and scored, your 10 best matches with their notes, and how many AI tokens the run used. The last line says where your sheet is: its file path, or its link.
 
@@ -254,7 +254,7 @@ Many companies list jobs only on their own careers page, hosted by [Greenhouse](
 - It searches for your first 3 roles, plus "remote" if remote is your only work mode. With 4 sites that's 12 searches. To search for something else, see [Common tasks](#common-tasks).
 - It searches with what you chose in `jobhunter init` → **Web search**: your AI's web search, SerpApi, Brave Search or DuckDuckGo. Until you choose, it uses DuckDuckGo, which takes about 10 minutes for 12 searches.
 - Each search is repeated after a week, to find companies that started hiring since. Run it again before then and there's nothing to do; add `-f` or `--force` to search again anyway.
-- Progress is saved after every search. Press Ctrl+C any time, or let a rate limit stop it, and the next run picks up where it stopped.
+- Progress is saved after every search. Press Ctrl+C any time, or let a rate limit stop it, and the next run picks up where it stopped. After 2 failed searches in a row (no connection, say) it stops too, and leaves the rest for next time.
 
 ```sh
 jobhunter companies find           # the usual, about once a week

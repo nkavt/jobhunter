@@ -2,9 +2,9 @@ import type { Command } from 'commander';
 import { ConfigError, NotInitializedError } from '../../config/index.js';
 import { connectAdapter } from '../../llm/index.js';
 import { CancelledError, createTerminalUi, dim } from '../../ui/index.js';
-import { CompaniesSetupError, runCompaniesFind } from './find.js';
+import { CompaniesSetupError, runCompaniesFind, succeeded } from './find.js';
 
-export { CompaniesSetupError, runCompaniesFind } from './find.js';
+export { CompaniesSetupError, runCompaniesFind, succeeded } from './find.js';
 export type { CompaniesFindDeps, CompaniesFindOptions } from './find.js';
 
 export function registerCompanies(program: Command): void {
@@ -25,7 +25,7 @@ export function registerCompanies(program: Command): void {
           { ui, connect: connectAdapter },
           flags.force ? { force: true } : {},
         );
-        if (result?.stopped && result.stopped.reason !== 'rate-limited') process.exitCode = 1;
+        if (!succeeded(result)) process.exitCode = 1;
       } catch (error) {
         if (error instanceof CancelledError) {
           ui.info('Cancelled.');

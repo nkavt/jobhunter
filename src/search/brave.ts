@@ -45,6 +45,8 @@ export async function searchBrave(query: string, apiKey: string): Promise<Search
   const body = parsed.success ? parsed.data : {};
 
   if (!response.ok) throw failure(response.status, body.error);
+  // Not "no results": the search didn't really happen, so it's tried again next time.
+  if (!parsed.success) throw new SearchError("Brave Search's answer couldn't be read.");
   // No `web` section at all when nothing matched.
   return (body.web?.results ?? []).flatMap((item) =>
     item.url

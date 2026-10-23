@@ -471,7 +471,7 @@ function report(
   }
   if (summary.deferred > 0) {
     ui.info(
-      `${String(summary.deferred)} more jobs passed your filters but weren't scored (limit ${String(maxAiJobs)} per run); a later run picks them up while they're still listed. Run \`jobhunter hunt --max-ai-jobs <n>\` to score more.`,
+      `${String(summary.deferred)} more jobs passed your filters but weren't scored (limit ${String(maxAiJobs)} per run); a later run picks them up while they're still listed. To score more now, run \`jobhunter hunt --force --max-ai-jobs <n>\`: --force fetches them again, since every source was just checked.`,
     );
   }
   if (options.dryRun) ui.info(dim('Dry run: nothing was written to your sheet.'));

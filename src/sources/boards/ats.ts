@@ -49,7 +49,13 @@ const str = (value: unknown) => (typeof value === 'string' ? value : '');
 /** Board slugs are a single path segment; these are the sites' own pages, not boards. */
 const RESERVED = new Set(['embed', 'api', 'j', 'jobs', 'v0', 'v1']);
 function firstSegment(url: URL): string | undefined {
-  const segment = decodeURIComponent(url.pathname.split('/')[1] ?? '').trim();
+  let segment: string;
+  try {
+    segment = decodeURIComponent(url.pathname.split('/')[1] ?? '').trim();
+  } catch {
+    // A stray `%` ("100%-remote"): not a board name we could read.
+    return undefined;
+  }
   return segment && !RESERVED.has(segment.toLowerCase()) && !/[\s?#]/.test(segment)
     ? segment
     : undefined;

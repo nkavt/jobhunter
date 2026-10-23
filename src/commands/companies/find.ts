@@ -31,6 +31,17 @@ export interface CompaniesFindOptions {
   force?: boolean;
 }
 
+/**
+ * Whether a run counts as a success for the exit code: not when the search refused for a reason
+ * the user has to fix (a rejected key, a used-up plan), or when no search went through at all.
+ * Nothing to search, or being asked to slow down, isn't a failure.
+ */
+export function succeeded(result: FindBoardsResult | undefined): boolean {
+  if (!result) return true;
+  if (result.stopped && result.stopped.reason !== 'rate-limited') return false;
+  return !(result.searched === 0 && result.failed > 0);
+}
+
 /** Setup isn't complete enough to search; the message says what to do. */
 export class CompaniesSetupError extends Error {
   constructor(message: string) {
@@ -104,7 +115,11 @@ export async function runCompaniesFind(
         : 'Run `jobhunter init` → Web search to fix it or pick another search.';
     ui.warn(`${result.stopped.message} ${next}`);
   }
-  if (result.failed > 0) {
+  if (result.gaveUp) {
+    ui.warn(
+      `Stopped after ${String(result.failed)} failed searches in a row (${result.lastFailure?.message ?? 'unknown error'}). Check your connection; the remaining ${String(result.left)} searches run next time.`,
+    );
+  } else if (result.failed > 0) {
     ui.warn(
       `${String(result.failed)} searches failed (${result.lastFailure?.message ?? 'unknown error'}); the next run tries them again.`,
     );

@@ -1,4 +1,6 @@
 import { readFileSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../../src/config/index.js';
@@ -9,6 +11,7 @@ import {
   ATS,
   boardJobs,
   boardQueries,
+  boardStateFile,
   companyFromSlug,
   dueBoards,
   dueSearches,
@@ -196,6 +199,9 @@ describe('ATS boards from search results', () => {
     expect(board('https://www.greenhouse.io/blog/hiring')).toBeUndefined();
     expect(board('https://jobs.lever.co/')).toBeUndefined();
     expect(board('https://example.com/jobs.lever.co/acme')).toBeUndefined();
+    // A stray `%` can't be decoded; it's skipped rather than crashing the search.
+    expect(board('https://jobs.lever.co/100%-remote/x')).toBeUndefined();
+    expect(board('https://jobs.ashbyhq.com/a%E0%A4%A/1')).toBeUndefined();
   });
 
   it('names a company from its slug when the board does not', () => {
@@ -434,5 +440,31 @@ describe('huntBoards', () => {
     const state = known('acme');
     await saveBoardState(state);
     expect(await loadBoardState()).toEqual(state);
+  });
+
+  it('drops only the entries it cannot read, keeping the rest', async () => {
+    await mkdir(dirname(boardStateFile()), { recursive: true });
+    await writeFile(
+      boardStateFile(),
+      JSON.stringify({
+        searches: {
+          'site:lever.co a': { searchedAt: '2026-10-20T00:00:00.000Z', found: 2 },
+          'site:lever.co b': { searchedAt: 'yesterday', found: 1 },
+        },
+        boards: {
+          'lever:acme': { ats: 'lever', board: 'acme', foundAt: '2026-10-01T00:00:00.000Z' },
+          // An ATS this version doesn't know, and an empty board name.
+          'smartrecruiters:x': { ats: 'smartrecruiters', board: 'x', foundAt: now.toISOString() },
+          'lever:': { ats: 'lever', board: '', foundAt: now.toISOString() },
+        },
+      }),
+    );
+    const state = await loadBoardState();
+    expect(Object.keys(state.searches)).toEqual(['site:lever.co a']);
+    expect(Object.keys(state.boards)).toEqual(['lever:acme']);
+
+    // A file that isn't even JSON starts over.
+    await writeFile(boardStateFile(), '{ broken');
+    expect(await loadBoardState()).toEqual({ searches: {}, boards: {} });
   });
 });

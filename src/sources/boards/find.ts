@@ -71,7 +71,12 @@ export interface FindBoardsResult {
   failed: number;
   /** Why the last of those failed. */
   lastFailure?: SearchError;
+  /** Stopped after several failures in a row (offline, say); later searches didn't run. */
+  gaveUp?: boolean;
 }
+
+/** Failed searches in a row before the rest are left for next time: likely no connection. */
+export const MAX_FAILURES_IN_A_ROW = 2;
 
 /**
  * Run the due searches one by one, at the engine's pace, and remember the boards they find.
@@ -100,6 +105,7 @@ export async function findCompanyBoards(
   await ui.task(
     `${label}… 0/${String(due.length)}`,
     async (update) => {
+      let failedInARow = 0;
       for (const [index, query] of due.entries()) {
         if (index > 0 && engine.pauseMs > 0) await pause(engine.pauseMs);
         let results: SearchResult[];
@@ -113,8 +119,14 @@ export async function findCompanyBoards(
           }
           result.failed++;
           result.lastFailure = error;
+          update(`${label}… ${String(index + 1)}/${String(due.length)}`);
+          if (++failedInARow >= MAX_FAILURES_IN_A_ROW) {
+            result.gaveUp = true;
+            break;
+          }
           continue;
         }
+        failedInARow = 0;
         let found = 0;
         for (const item of results) {
           const board = boardFromResult(item.url, ats);
@@ -132,7 +144,7 @@ export async function findCompanyBoards(
       }
     },
     () =>
-      result.stopped && result.searched === 0
+      result.searched === 0 && (result.stopped || result.failed > 0)
         ? `${engine.name}: no search went through`
         : `${engine.name}: ${String(result.added)} new company job boards`,
   );

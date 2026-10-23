@@ -30,16 +30,18 @@ export const BROWSER_HEADERS: Readonly<Record<string, string>> = {
  */
 export async function searchDuckDuckGo(query: string): Promise<SearchResult[]> {
   let response: Response;
+  let html: string;
   try {
     // GET: POSTs to the same endpoint hit the bot check far more often.
     response = await fetch(`${ENDPOINT}?q=${encodeURIComponent(query)}`, {
       headers: BROWSER_HEADERS,
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
+    // Inside the try: the timeout also covers reading the page, which can stall halfway.
+    html = await response.text();
   } catch (error) {
     throw new SearchError("Couldn't reach DuckDuckGo.", 'failed', { cause: error });
   }
-  const html = await response.text();
   if (response.status === 202 || html.includes('anomaly-modal')) {
     throw new SearchError('DuckDuckGo asked to slow down.', 'rate-limited');
   }

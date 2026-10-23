@@ -188,4 +188,34 @@ describe('jobhunter init: web search', () => {
       search: { provider: 'brave', apiKey: 'good' },
     });
   });
+
+  it("drops the AI's own search when the new AI provider can't search", async () => {
+    await setUp({ ...config, search: { provider: 'ai' } });
+    const ui = new FakeUi(['ai', 'openai', 'https://openrouter.ai/api/v1', 'sk-or-new', DEFAULT]);
+    await runInit({
+      ui,
+      openBrowser: () => undefined,
+      connect: () => new FakeLLM({ models: [{ id: 'some/model', displayName: 'Some model' }] }),
+    });
+    const saved = await readConfig();
+    expect(saved?.provider).toBe('openai');
+    expect(saved?.search).toBeUndefined();
+    expect(ui.output.join('\n')).toContain(
+      "⚠ Your web search was the AI's own search, which OpenAI-compatible API doesn't have.",
+    );
+  });
+
+  it("says when the AI's own search moves to the new AI provider", async () => {
+    await setUp({ ...config, search: { provider: 'ai' } });
+    const ui = new FakeUi(['ai', 'gemini', 'AIza-new', DEFAULT]);
+    await runInit({
+      ui,
+      openBrowser: () => undefined,
+      connect: () => new FakeLLM({ models: [{ id: 'gemini-3.8-flash', displayName: 'Flash' }] }),
+    });
+    expect((await readConfig())?.search).toEqual({ provider: 'ai' });
+    expect(ui.output).toContain(
+      'Web searches now go through Gemini with Google Search, on this key.',
+    );
+  });
 });

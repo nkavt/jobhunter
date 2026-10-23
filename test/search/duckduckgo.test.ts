@@ -73,4 +73,25 @@ describe('searchDuckDuckGo', () => {
     server.use(http.get(ENDPOINT, () => HttpResponse.error()));
     await expect(searchDuckDuckGo('anything')).rejects.toThrow("Couldn't reach DuckDuckGo.");
   });
+
+  it('reports a page that breaks off halfway as a failed search, not a crash', async () => {
+    server.use(
+      http.get(
+        ENDPOINT,
+        () =>
+          new HttpResponse(
+            new ReadableStream({
+              start(controller) {
+                controller.enqueue(new TextEncoder().encode('<html><body>'));
+                controller.error(new Error('terminated'));
+              },
+            }),
+          ),
+      ),
+    );
+    const error = await searchDuckDuckGo('anything').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(SearchError);
+    expect((error as SearchError).reason).toBe('failed');
+    expect((error as Error).message).toBe("Couldn't reach DuckDuckGo.");
+  });
 });

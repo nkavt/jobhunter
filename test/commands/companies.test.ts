@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { CompaniesSetupError, runCompaniesFind } from '../../src/commands/companies/index.js';
+import {
+  CompaniesSetupError,
+  runCompaniesFind,
+  succeeded,
+} from '../../src/commands/companies/index.js';
 import { saveConfig, saveProfile, type SearchConfig } from '../../src/config/index.js';
 import { SearchError, type SearchEngine, type SearchResult } from '../../src/search/index.js';
 import { ATS, loadBoardState } from '../../src/sources/index.js';
@@ -117,13 +121,53 @@ describe('jobhunter companies find', () => {
     expect(ui.output.join('\n')).toContain(
       "⚠ Brave Search didn't accept the API key. Run `jobhunter init` → Web search",
     );
+    expect(succeeded(result)).toBe(false);
+  });
+
+  it('stops after two failed searches in a row, and counts as a failure', async () => {
+    await setUp();
+    const ui = new FakeUi([]);
+    const offline = engine(() => Promise.reject(new SearchError("Couldn't reach DuckDuckGo.")));
+    const result = await runCompaniesFind({
+      ui,
+      connect: () => new FakeLLM(),
+      engine: offline,
+      // 4 sites × 2 roles: 8 searches due.
+      ats: ATS,
+      pause: () => Promise.resolve(),
+      now: () => now,
+    });
+    expect(offline.queries).toHaveLength(2);
+    expect(result).toMatchObject({ searched: 0, failed: 2, gaveUp: true, left: 8 });
+    expect(ui.output).toContain('✔ Test Search: no search went through');
+    expect(ui.output.join('\n')).toContain(
+      "⚠ Stopped after 2 failed searches in a row (Couldn't reach DuckDuckGo.). Check your connection; the remaining 8 searches run next time.",
+    );
+    expect(succeeded(result)).toBe(false);
+  });
+
+  it('carries on after a single failed search', async () => {
+    await setUp({ search: { provider: 'serpapi', apiKey: 'k' } });
+    const ui = new FakeUi([]);
+    let calls = 0;
+    const result = await run(
+      ui,
+      engine(() =>
+        ++calls === 1
+          ? Promise.reject(new SearchError('SerpApi answered with HTTP 503.'))
+          : Promise.resolve([]),
+      ),
+    );
+    expect(result).toMatchObject({ searched: 1, failed: 1, left: 1 });
+    expect(result?.gaveUp).toBeUndefined();
+    expect(succeeded(result)).toBe(true);
   });
 
   it('leaves the rest for later when asked to slow down', async () => {
     await setUp({ search: { provider: 'serpapi', apiKey: 'k' } });
     const ui = new FakeUi([]);
     let calls = 0;
-    await run(
+    const result = await run(
       ui,
       engine(() =>
         ++calls === 1
@@ -134,6 +178,8 @@ describe('jobhunter companies find', () => {
     expect(ui.output.join('\n')).toContain(
       'SerpApi asked to slow down. The remaining 1 searches run next time.',
     );
+    // Waiting fixes it: not a failure.
+    expect(succeeded(result)).toBe(true);
   });
 
   it('needs the roles from a CV first', async () => {

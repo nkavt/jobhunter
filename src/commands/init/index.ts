@@ -5,11 +5,15 @@ import {
   readConfig,
   saveConfig,
   type Config,
+  type Provider,
+  type SearchConfig,
 } from '../../config/index.js';
 import { openInBrowser } from '../../google/index.js';
 import {
   connectAdapter,
   getConfiguredAdapterName,
+  PROVIDER_NAMES,
+  WEB_SEARCH_NAMES,
   type Connection,
   type LLMAdapter,
 } from '../../llm/index.js';
@@ -46,11 +50,12 @@ export async function runInit(deps: InitDeps): Promise<void> {
   let config = existing;
   if (steps.has('ai')) {
     const ai = await setupAi(deps, existing);
+    const search = keptSearch(ui, existing, ai.provider, steps.has('search'));
     config = {
       version: 1,
       ...ai,
       activeProfile: existing?.activeProfile ?? 'default',
-      ...(existing?.search ? { search: existing.search } : {}),
+      ...(search ? { search } : {}),
     };
     await saveConfig(config);
     ui.success(`Saved to ${configFile()}`);
@@ -85,6 +90,31 @@ export async function runInit(deps: InitDeps): Promise<void> {
   }
 
   await finishInit(ui, profileName);
+}
+
+/**
+ * The web search to keep after the AI setup. Searching "with the AI" follows the AI provider:
+ * it's dropped when the new one can't search, and the user hears when it moves to another.
+ */
+function keptSearch(
+  ui: Ui,
+  existing: Config | undefined,
+  provider: Provider,
+  searchStepNext: boolean,
+): SearchConfig | undefined {
+  const search = existing?.search;
+  if (search?.provider !== 'ai' || existing?.provider === provider) return search;
+  const name = WEB_SEARCH_NAMES[provider];
+  if (!name) {
+    if (!searchStepNext) {
+      ui.warn(
+        `Your web search was the AI's own search, which ${PROVIDER_NAMES[provider]} doesn't have. Until you choose another in \`jobhunter init\` → Web search, DuckDuckGo is used.`,
+      );
+    }
+    return undefined;
+  }
+  if (!searchStepNext) ui.info(dim(`Web searches now go through ${name}, on this key.`));
+  return search;
 }
 
 async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {

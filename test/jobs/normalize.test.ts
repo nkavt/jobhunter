@@ -42,6 +42,15 @@ describe('normalizeUrl', () => {
     );
     expect(normalizeUrl('not a url ')).toBe('not a url');
   });
+
+  it("keeps Greenhouse's job id, so jobs on a company's own careers page stay apart", () => {
+    const stripe = (id: string, extra = '') =>
+      normalizeUrl(`https://stripe.com/jobs/search?${extra}gh_jid=${id}`);
+    expect(stripe('8172510')).toBe('https://stripe.com/jobs/search?gh_jid=8172510');
+    expect(stripe('8172510')).not.toBe(stripe('8172487'));
+    // Other parameters still don't matter.
+    expect(stripe('8172510', 'gh_src=abc&utm_source=x&')).toBe(stripe('8172510'));
+  });
 });
 
 describe('jobKey', () => {

@@ -50,6 +50,14 @@ describe('searchBrave', () => {
     expect(await searchBrave('nothing', 'key')).toEqual([]);
   });
 
+  it("fails, rather than finding nothing, when a 200 answer can't be read", async () => {
+    server.use(http.get(ENDPOINT, () => new HttpResponse('<html>gateway</html>')));
+    const error = failure(await searchBrave('q', 'key').catch((e: unknown) => e));
+    expect(error).toBeInstanceOf(SearchError);
+    expect(error.reason).toBe('failed');
+    expect(error.message).toBe("Brave Search's answer couldn't be read.");
+  });
+
   it('reports a rejected key, including the 422 Brave answers with', async () => {
     server.use(http.get(ENDPOINT, () => braveError(422, 'SUBSCRIPTION_TOKEN_INVALID')));
     const error = failure(await searchBrave('q', 'bad').catch((e: unknown) => e));

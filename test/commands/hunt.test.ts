@@ -21,6 +21,8 @@ import type { JsonRequest } from '../../src/llm/index.js';
 import type { Job } from '../../src/jobs/index.js';
 import type { FeedMapping } from '../../src/mapping/index.js';
 import {
+  ATS,
+  BUILTIN_MAPPINGS,
   loadBoardState,
   loadSourceState,
   saveBoardState,
@@ -356,7 +358,7 @@ describe('jobhunter hunt', () => {
       const summary = await runHunt({ ...d, ui, interactive: true });
       expect(summary.deferred).toBe(5);
       expect(ui.output.join('\n')).toContain(
-        'Run `jobhunter hunt --max-ai-jobs <n>` to score more.',
+        'To score more now, run `jobhunter hunt --force --max-ai-jobs <n>`: --force fetches them again, since every source was just checked.',
       );
     });
 
@@ -621,6 +623,53 @@ describe('jobhunter hunt: company job boards', () => {
     expect((await loadBoardState()).boards['lever:acme']?.lastFetchedAt).toBe(now.toISOString());
     // Searched recently, so no reminder.
     expect(ui.output.join('\n')).not.toContain('companies find');
+  });
+
+  it("keeps apart a company's Greenhouse jobs that link to its own careers page", async () => {
+    await setUp();
+    await saveSourceState({
+      'board-a': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
+      'board-b': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
+    });
+    await saveBoardState({
+      searches: {},
+      boards: {
+        'greenhouse:stripe': { ats: 'greenhouse', board: 'stripe', foundAt: now.toISOString() },
+      },
+    });
+    // Every job links to the same page; only `gh_jid` tells them apart.
+    const greenhouseJob = (id: number) => ({
+      id,
+      title: 'Senior Frontend Engineer 85',
+      absolute_url: `https://stripe.com/jobs/search?gh_jid=${String(id)}`,
+      location: { name: 'Remote' },
+      first_published: '2026-10-10T10:00:00.000Z',
+      content: '&lt;p&gt;Build things.&lt;/p&gt;',
+    });
+    server.use(
+      http.get('https://boards-api.greenhouse.io/v1/boards/stripe/jobs', () =>
+        HttpResponse.json({ jobs: [greenhouseJob(1), greenhouseJob(2)] }),
+      ),
+    );
+    const greenhouse = ATS.filter((a) => a.id === 'greenhouse');
+    const first = deps({});
+    await runHunt({ ...first.deps, ats: greenhouse, mappings: BUILTIN_MAPPINGS });
+    expect(first.tracker.applications.map((a) => a.job.url)).toEqual([
+      'https://stripe.com/jobs/search?gh_jid=1',
+      'https://stripe.com/jobs/search?gh_jid=2',
+    ]);
+
+    // With the first one already in the sheet, the second still isn't "known".
+    const tracker = new FakeTracker(new Set(['url:https://stripe.com/jobs/search?gh_jid=1']));
+    const second = deps({}, { tracker });
+    const summary = await runHunt(
+      { ...second.deps, ats: greenhouse, mappings: BUILTIN_MAPPINGS },
+      { force: true },
+    );
+    expect(summary.known).toBe(1);
+    expect(tracker.applications.map((a) => a.job.url)).toEqual([
+      'https://stripe.com/jobs/search?gh_jid=2',
+    ]);
   });
 
   it("says first that company boards are skipped when none are known, and doesn't search", async () => {

@@ -50,11 +50,23 @@ export function htmlToText(html: string): string {
   );
 }
 
-/** For duplicate checks: lowercase host, no query, fragment or trailing slash. */
+/**
+ * Query parameters that name the job itself, so they're kept: Greenhouse boards on a company's
+ * own site link every job to the same page (`stripe.com/jobs/search?gh_jid=8172510`).
+ */
+const JOB_PARAMS = ['gh_jid'];
+
+/** For duplicate checks: lowercase host, no fragment, trailing slash or query (but job ids). */
 export function normalizeUrl(url: string): string {
   try {
     const parsed = new URL(url);
-    return `${parsed.protocol}//${parsed.host.toLowerCase()}${parsed.pathname.replace(/\/+$/, '')}`;
+    const kept = new URLSearchParams();
+    for (const name of JOB_PARAMS) {
+      const value = parsed.searchParams.get(name);
+      if (value) kept.set(name, value);
+    }
+    const query = kept.size > 0 ? `?${kept.toString()}` : '';
+    return `${parsed.protocol}//${parsed.host.toLowerCase()}${parsed.pathname.replace(/\/+$/, '')}${query}`;
   } catch {
     return url.trim();
   }
