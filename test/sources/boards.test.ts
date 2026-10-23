@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import type { Profile } from '../../src/config/index.js';
 import { FeedMappingSchema, parseFeed } from '../../src/mapping/index.js';
 import { SearchError, type SearchEngine, type SearchResult } from '../../src/search/index.js';
+import { ATS_FEEDS, BUILTIN_MAPPINGS } from '../../src/sources/builtin.js';
 import {
   ATS,
   boardJobs,
@@ -11,6 +12,7 @@ import {
   companyFromSlug,
   dueBoards,
   dueSearches,
+  feedOf,
   findCompanyBoards,
   huntBoards,
   loadBoardState,
@@ -52,11 +54,40 @@ const profile: Pick<Profile, 'derived' | 'preferences' | 'boardSearch'> = {
 };
 
 describe('ATS mappings', () => {
-  it('are valid mappings with distinct ids', () => {
-    for (const system of ATS) {
-      expect(FeedMappingSchema.safeParse(system.mapping).success, system.id).toBe(true);
+  it('are built-in mappings, one per feed template, each valid', () => {
+    const templates = ATS.flatMap((system) => [
+      system.feed,
+      ...Object.values(system.regionalFeeds ?? {}),
+    ]);
+    expect(templates).toHaveLength(5);
+    for (const template of templates) {
+      expect(template).toContain('{board}');
+      expect(FeedMappingSchema.safeParse(BUILTIN_MAPPINGS[template]).success, template).toBe(true);
     }
+    // EU boards are the same API on another host.
+    expect(BUILTIN_MAPPINGS[ATS_FEEDS.leverEu]).toBe(BUILTIN_MAPPINGS[ATS_FEEDS.lever]);
     expect(ATS.map((a) => a.name)).toEqual(['Greenhouse', 'Lever', 'Ashby', 'Workable']);
+  });
+
+  it('fill in the board to get its feed and mapping', () => {
+    expect(feedOf(ats('greenhouse'), 'stripe')).toEqual({
+      url: 'https://boards-api.greenhouse.io/v1/boards/stripe/jobs?content=true',
+      mappingKey: ATS_FEEDS.greenhouse,
+    });
+    expect(feedOf(ats('lever'), 'eu:acme')).toEqual({
+      url: 'https://api.eu.lever.co/v0/postings/acme?mode=json',
+      mappingKey: ATS_FEEDS.leverEu,
+    });
+    // Slugs are URL-encoded.
+    expect(feedOf(ats('ashby'), 'a b').url).toBe(
+      'https://api.ashbyhq.com/posting-api/job-board/a%20b?includeCompensation=true',
+    );
+  });
+
+  it('fail loudly without a mapping for the feed', () => {
+    expect(() => boardJobs(ats('lever'), 'acme', [], {})).toThrow(
+      'No mapping for Lever feeds (https://api.lever.co/v0/postings/{board}?mode=json).',
+    );
   });
 
   it('Greenhouse: company from the job, escaped HTML descriptions', () => {
@@ -165,12 +196,6 @@ describe('ATS boards from search results', () => {
     expect(board('https://www.greenhouse.io/blog/hiring')).toBeUndefined();
     expect(board('https://jobs.lever.co/')).toBeUndefined();
     expect(board('https://example.com/jobs.lever.co/acme')).toBeUndefined();
-  });
-
-  it('reads EU Lever boards from the EU API', () => {
-    expect(ats('lever').feedUrl('eu:acme')).toBe(
-      'https://api.eu.lever.co/v0/postings/acme?mode=json',
-    );
   });
 
   it('names a company from its slug when the board does not', () => {

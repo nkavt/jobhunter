@@ -1,11 +1,12 @@
-import type { FeedMapping } from '../../mapping/index.js';
+import { ATS_FEEDS } from '../builtin.js';
 
 export const ATS_IDS = ['greenhouse', 'lever', 'ashby', 'workable'] as const;
 export type AtsId = (typeof ATS_IDS)[number];
 
 /**
  * An applicant tracking system whose companies publish their jobs on public boards with a
- * JSON API. Boards are found by web search (`site:`), then read through the API.
+ * JSON API. Boards are found by web search (`site:`), then read through the API with the
+ * ATS's mapping in `BUILTIN_MAPPINGS`.
  */
 export interface Ats {
   /** Stored on every job (`job.source`). */
@@ -16,13 +17,28 @@ export interface Ats {
   site: string;
   /** The board a search result links into, e.g. `jobs.lever.co/acme/123` → `acme`. */
   boardFrom: (url: URL) => string | undefined;
-  feedUrl: (board: string) => string;
+  /** The feed URL with `{board}` for the board; also the key of its mapping. */
+  feed: string;
+  /** Boards on another host, by the prefix of their saved name: Lever's EU boards are `eu:acme`. */
+  regionalFeeds?: Record<string, string>;
   /** Reshape the feed before mapping: join or pick fields a mapping can't express. */
   prepare?: (feed: unknown) => unknown;
   /** The company's name from the whole feed, for boards whose jobs don't name it. */
   company?: (feed: unknown) => string | undefined;
-  mapping: FeedMapping;
 }
+
+/** Where a board's jobs are, and which mapping reads them. */
+export function feedOf(ats: Ats, board: string): { url: string; mappingKey: string } {
+  for (const [prefix, template] of Object.entries(ats.regionalFeeds ?? {})) {
+    if (board.startsWith(prefix)) return fill(template, board.slice(prefix.length));
+  }
+  return fill(ats.feed, board);
+}
+
+const fill = (template: string, slug: string) => ({
+  url: template.replace('{board}', encodeURIComponent(slug)),
+  mappingKey: template,
+});
 
 type Item = Record<string, unknown>;
 const isItem = (value: unknown): value is Item =>
@@ -52,22 +68,7 @@ export const ATS: Ats[] = [
       // Embedded boards: boards.greenhouse.io/embed/job_board?for=acme
       return url.searchParams.get('for') ?? firstSegment(url);
     },
-    feedUrl: (board) =>
-      `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(board)}/jobs?content=true`,
-    mapping: {
-      format: 'json',
-      items: 'jobs',
-      fields: {
-        sourceId: { from: 'id', transform: 'string' },
-        url: 'absolute_url',
-        title: { from: 'title', transform: 'text' },
-        company: { from: 'company_name', transform: 'text' },
-        location: { from: 'location.name', transform: 'location' },
-        postedAt: { from: 'first_published', transform: 'date' },
-        // HTML with its tags escaped ("&lt;p&gt;"): the first pass unescapes, the second strips.
-        description: { from: 'content', transform: ['html', 'html'] },
-      },
-    },
+    feed: ATS_FEEDS.greenhouse,
   },
   {
     id: 'lever',
@@ -78,10 +79,8 @@ export const ATS: Ats[] = [
       const slug = /^jobs(\.eu)?\.lever\.co$/.test(url.hostname) ? firstSegment(url) : undefined;
       return slug && url.hostname.includes('.eu.') ? `${LEVER_EU}${slug}` : slug;
     },
-    feedUrl: (board) =>
-      board.startsWith(LEVER_EU)
-        ? `https://api.eu.lever.co/v0/postings/${encodeURIComponent(board.slice(LEVER_EU.length))}?mode=json`
-        : `https://api.lever.co/v0/postings/${encodeURIComponent(board)}?mode=json`,
+    feed: ATS_FEEDS.lever,
+    regionalFeeds: { [LEVER_EU]: ATS_FEEDS.leverEu },
     // Requirements and benefits are separate lists next to the description.
     prepare: (feed) =>
       items(feed).map((job) => ({
@@ -94,51 +93,13 @@ export const ATS: Ats[] = [
           str(job.additional),
         ].join(''),
       })),
-    mapping: {
-      format: 'json',
-      items: '',
-      fields: {
-        sourceId: 'id',
-        url: 'hostedUrl',
-        title: { from: 'text', transform: 'text' },
-        location: { from: 'categories.location', transform: 'location' },
-        workMode: {
-          from: 'workplaceType',
-          map: { remote: 'remote', hybrid: 'hybrid', onsite: 'onsite' },
-        },
-        employmentType: {
-          from: 'categories.commitment',
-          map: {
-            'Full-Time': 'full_time',
-            'Full-time': 'full_time',
-            'Part-Time': 'part_time',
-            'Part-time': 'part_time',
-            Contract: 'contract',
-            Contractor: 'contract',
-            Freelance: 'freelance',
-            Intern: 'internship',
-            Internship: 'internship',
-          },
-        },
-        'salary.min': { from: 'salaryRange.min', transform: 'positive' },
-        'salary.max': { from: 'salaryRange.max', transform: 'positive' },
-        'salary.currency': { from: 'salaryRange.currency', transform: 'text' },
-        'salary.period': {
-          from: 'salaryRange.interval',
-          map: { 'per-year-salary': 'year', 'per-month-salary': 'month', 'per-hour-wage': 'hour' },
-        },
-        postedAt: { from: 'createdAt', transform: 'date' },
-        description: { from: 'fullDescription', transform: 'html' },
-      },
-    },
   },
   {
     id: 'ashby',
     name: 'Ashby',
     site: 'jobs.ashbyhq.com',
     boardFrom: (url) => (url.hostname === 'jobs.ashbyhq.com' ? firstSegment(url) : undefined),
-    feedUrl: (board) =>
-      `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(board)}?includeCompensation=true`,
+    feed: ATS_FEEDS.ashby,
     // The salary is one of several compensation parts (equity, bonus…).
     prepare: (feed) =>
       items(isItem(feed) ? feed.jobs : undefined)
@@ -150,51 +111,13 @@ export const ATS: Ats[] = [
           );
           return { ...job, salary };
         }),
-    mapping: {
-      format: 'json',
-      items: '',
-      fields: {
-        sourceId: 'id',
-        url: 'jobUrl',
-        title: { from: 'title', transform: 'text' },
-        location: { from: 'location', transform: 'location' },
-        workMode: {
-          from: 'workplaceType',
-          map: { Remote: 'remote', Hybrid: 'hybrid', OnSite: 'onsite' },
-        },
-        employmentType: {
-          from: 'employmentType',
-          map: {
-            FullTime: 'full_time',
-            PartTime: 'part_time',
-            Contract: 'contract',
-            Intern: 'internship',
-          },
-        },
-        'salary.min': { from: 'salary.minValue', transform: 'positive' },
-        'salary.max': { from: 'salary.maxValue', transform: 'positive' },
-        'salary.currency': { from: 'salary.currencyCode', transform: 'text' },
-        'salary.period': {
-          from: 'salary.interval',
-          map: { '1 YEAR': 'year', '1 MONTH': 'month', '1 HOUR': 'hour' },
-        },
-        // `null` when the job shows no pay; the transform turns that into "no value".
-        'salary.text': {
-          from: 'compensation.scrapeableCompensationSalarySummary',
-          transform: 'text',
-        },
-        postedAt: { from: 'publishedAt', transform: 'date' },
-        description: { from: 'descriptionHtml', transform: 'html' },
-      },
-    },
   },
   {
     id: 'workable',
     name: 'Workable',
     site: 'apply.workable.com',
     boardFrom: (url) => (url.hostname === 'apply.workable.com' ? firstSegment(url) : undefined),
-    feedUrl: (board) =>
-      `https://apply.workable.com/api/v1/widget/accounts/${encodeURIComponent(board)}?details=true`,
+    feed: ATS_FEEDS.workable,
     // City, region and country come separately.
     prepare: (feed) =>
       items(isItem(feed) ? feed.jobs : undefined).map((job) => {
@@ -207,28 +130,5 @@ export const ATS: Ats[] = [
         return { ...job, place: [...new Set(parts)].join(', ') };
       }),
     company: (feed) => (isItem(feed) ? str(feed.name) || undefined : undefined),
-    mapping: {
-      format: 'json',
-      items: '',
-      fields: {
-        sourceId: 'shortcode',
-        url: 'url',
-        title: { from: 'title', transform: 'text' },
-        location: { from: 'place', transform: 'location' },
-        // Only says when a job is remote; anything else is left to the description.
-        workMode: { from: 'telecommuting', map: { true: 'remote' } },
-        employmentType: {
-          from: 'employment_type',
-          map: {
-            'Full-time': 'full_time',
-            'Part-time': 'part_time',
-            Contract: 'contract',
-            Internship: 'internship',
-          },
-        },
-        postedAt: { from: 'published_on', transform: 'date' },
-        description: { from: 'description', transform: 'html' },
-      },
-    },
   },
 ];

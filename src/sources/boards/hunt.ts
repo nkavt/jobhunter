@@ -7,8 +7,9 @@ import {
   type MappingResult,
 } from '../../mapping/index.js';
 import type { Ui } from '../../ui/index.js';
+import { BUILTIN_MAPPINGS } from '../builtin.js';
 import { USER_AGENT } from '../fetch.js';
-import { ATS, type Ats } from './ats.js';
+import { ATS, feedOf, type Ats } from './ats.js';
 import { boardKey, type BoardState, type KnownBoard } from './state.js';
 
 /** Like the job boards' feeds: no need to read a company's board more often. */
@@ -19,6 +20,8 @@ const TIMEOUT_MS = 30_000;
 export interface BoardHuntDeps {
   ui: Ui;
   ats?: readonly Ats[];
+  /** Keyed by each ATS's feed template; the built-in mappings by default. */
+  mappings?: Record<string, FeedMapping>;
 }
 
 export interface BoardHuntOptions {
@@ -71,6 +74,7 @@ async function readBoards(
   options: BoardHuntOptions,
 ): Promise<BoardJob[]> {
   const systems = new Map(ats.map((system) => [system.id, system]));
+  const mappings = deps.mappings ?? BUILTIN_MAPPINGS;
   const due = dueBoards(state, options.now, options.force).filter((board) =>
     systems.has(board.ats),
   );
@@ -83,7 +87,9 @@ async function readBoards(
       let done = 0;
       return pool(due, BOARD_CONCURRENCY, async (board) => {
         const system = systems.get(board.ats);
-        const outcome = system ? await readBoard(system, board.board) : { kind: 'gone' as const };
+        const outcome = system
+          ? await readBoard(system, board.board, mappings)
+          : { kind: 'gone' as const };
         done++;
         update(`${label}… ${String(done)}/${String(due.length)}`);
         return outcome.kind === 'jobs'
@@ -120,10 +126,14 @@ async function readBoards(
   return found;
 }
 
-async function readBoard(ats: Ats, board: string): Promise<BoardOutcome> {
+async function readBoard(
+  ats: Ats,
+  board: string,
+  mappings: Record<string, FeedMapping>,
+): Promise<BoardOutcome> {
   let feed: unknown;
   try {
-    const response = await fetch(ats.feedUrl(board), {
+    const response = await fetch(feedOf(ats, board).url, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
@@ -134,15 +144,23 @@ async function readBoard(ats: Ats, board: string): Promise<BoardOutcome> {
     return { kind: 'failed' };
   }
   // Jobs that don't map are dropped quietly: one odd posting shouldn't hide the board.
-  return { kind: 'jobs', jobs: boardJobs(ats, board, feed).jobs };
+  return { kind: 'jobs', jobs: boardJobs(ats, board, feed, mappings).jobs };
 }
 
 /** Convert a board's parsed feed into jobs, naming the company when its jobs don't. */
-export function boardJobs(ats: Ats, board: string, feed: unknown): MappingResult {
+export function boardJobs(
+  ats: Ats,
+  board: string,
+  feed: unknown,
+  mappings: Record<string, FeedMapping> = BUILTIN_MAPPINGS,
+): MappingResult {
+  const { mappingKey } = feedOf(ats, board);
+  const base = mappings[mappingKey];
+  if (!base) throw new Error(`No mapping for ${ats.name} feeds (${mappingKey}).`);
   const company = ats.company?.(feed) ?? companyFromSlug(board);
   const mapping: FeedMapping = {
-    ...ats.mapping,
-    fields: { ...ats.mapping.fields, company: withDefault(ats.mapping.fields.company, company) },
+    ...base,
+    fields: { ...base.fields, company: withDefault(base.fields.company, company) },
   };
   return applyMapping(ats.prepare?.(feed) ?? feed, mapping, ats.id);
 }

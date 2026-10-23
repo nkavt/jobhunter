@@ -245,7 +245,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   const keywords = titleKeywords(profile.derived);
   const boardJobs = await huntBoards(
     boardState,
-    { ui, ats },
+    { ui, ats, ...(deps.mappings ? { mappings: deps.mappings } : {}) },
     {
       now,
       ...(options.force ? { force: true } : {}),

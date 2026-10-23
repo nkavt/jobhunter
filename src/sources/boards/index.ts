@@ -1,4 +1,4 @@
-export { ATS, ATS_IDS, type Ats, type AtsId } from './ats.js';
+export { ATS, ATS_IDS, feedOf, type Ats, type AtsId } from './ats.js';
 export {
   boardQueries,
   dueSearches,

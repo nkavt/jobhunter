@@ -19,6 +19,7 @@ import {
 import { writeFileAtomic } from '../../src/config/fs.js';
 import type { JsonRequest } from '../../src/llm/index.js';
 import type { Job } from '../../src/jobs/index.js';
+import type { FeedMapping } from '../../src/mapping/index.js';
 import {
   loadBoardState,
   loadSourceState,
@@ -569,8 +570,10 @@ describe('jobhunter hunt: company job boards', () => {
     name: 'Example ATS',
     site: 'ats.example',
     boardFrom: (url) => (url.hostname === 'ats.example' ? url.pathname.split('/')[1] : undefined),
-    feedUrl: (board) => `https://api.ats.example/${board}`,
-    mapping: {
+    feed: 'https://api.ats.example/{board}',
+  };
+  const EXAMPLE_MAPPINGS: Record<string, FeedMapping> = {
+    [EXAMPLE_ATS.feed]: {
       format: 'json',
       items: '',
       fields: { sourceId: 'id', url: 'url', title: 'title', postedAt: 'postedAt' },
@@ -608,7 +611,7 @@ describe('jobhunter hunt: company job boards', () => {
       ),
     );
     const { deps: d, ui, tracker } = deps({});
-    const summary = await runHunt({ ...d, ats: [EXAMPLE_ATS] });
+    const summary = await runHunt({ ...d, ats: [EXAMPLE_ATS], mappings: EXAMPLE_MAPPINGS });
 
     expect(summary).toMatchObject({ fetched: 1, toApply: 1, ignored: 0 });
     expect(tracker.applications.map((a) => [a.job.title, a.job.company, a.channel])).toEqual([
@@ -623,7 +626,7 @@ describe('jobhunter hunt: company job boards', () => {
   it("says first that company boards are skipped when none are known, and doesn't search", async () => {
     await setUp();
     const { deps: d, ui } = deps({ 'board-a': [job('1')] });
-    await runHunt({ ...d, ats: [EXAMPLE_ATS] });
+    await runHunt({ ...d, ats: [EXAMPLE_ATS], mappings: EXAMPLE_MAPPINGS });
     expect(ui.output[0]).toBe(
       'Company job boards (Greenhouse, Lever, Ashby, Workable) are skipped: none found yet. Run `jobhunter companies find` to look for some.',
     );
@@ -637,7 +640,7 @@ describe('jobhunter hunt: company job boards', () => {
     if (!profile) throw new Error('no profile');
     await saveProfile({ ...profile, boardSearch: { queries: [] } });
     const { deps: d, ui } = deps({});
-    await runHunt({ ...d, ats: [EXAMPLE_ATS] });
+    await runHunt({ ...d, ats: [EXAMPLE_ATS], mappings: EXAMPLE_MAPPINGS });
     expect(ui.output.join('\n')).not.toContain('companies find');
   });
 
@@ -655,7 +658,7 @@ describe('jobhunter hunt: company job boards', () => {
       },
     });
     const { deps: d, ui } = deps({});
-    await runHunt({ ...d, ats: [EXAMPLE_ATS] });
+    await runHunt({ ...d, ats: [EXAMPLE_ATS], mappings: EXAMPLE_MAPPINGS });
     expect(ui.output.join('\n')).toContain(
       'Time to look for new company job boards: run `jobhunter companies find`.',
     );
