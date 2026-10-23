@@ -391,7 +391,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   return summary;
 }
 
-/** More jobs passed than a run scores by default: score them all, or only the newest? */
+/** More jobs passed than a run scores by default: score them all, only the newest, or a number? */
 async function askHowManyToScore(
   ui: Ui,
   passed: number,
@@ -399,7 +399,7 @@ async function askHowManyToScore(
   config: Parameters<typeof getConfiguredAdapterName>[0],
 ): Promise<number> {
   const calls = (jobs: number) => Math.ceil(jobs / BATCH_SIZE);
-  return ui.select({
+  const choice = await ui.select<number | 'other'>({
     message: `${String(passed)} jobs passed your filters, more than the ${String(cap)} a run scores by default. How many should the AI score?`,
     choices: [
       {
@@ -412,9 +412,27 @@ async function askHowManyToScore(
         value: passed,
         description: `About ${String(calls(passed))} AI requests with ${getConfiguredAdapterName(config)}, billed to your AI account. A large run can take a while, or run into your provider's rate limits.`,
       },
+      {
+        name: 'Another number…',
+        value: 'other',
+        description: `The newest jobs first, from 1 to ${String(passed)}.`,
+      },
     ],
     default: cap,
   });
+  if (choice !== 'other') return choice;
+  const answer = await ui.input({
+    message: `How many jobs should the AI score? (1–${String(passed)})`,
+    validate: (value) => {
+      const number = Number(value.trim());
+      return Number.isInteger(number) && number >= 1 && number <= passed
+        ? true
+        : `Type a whole number from 1 to ${String(passed)}`;
+    },
+  });
+  const count = Number(answer.trim());
+  ui.info(dim(`About ${String(calls(count))} AI requests.`));
+  return count;
 }
 
 function report(

@@ -317,12 +317,35 @@ describe('jobhunter hunt', () => {
 
       const asked = ui.prompts.find((p) => p.message.includes(prompt));
       expect(asked?.message).toMatch(/^105 jobs passed/);
-      expect(asked?.choices?.map((c) => c.name)).toEqual(['The newest 100', 'All 105']);
+      expect(asked?.choices?.map((c) => c.name)).toEqual([
+        'The newest 100',
+        'All 105',
+        'Another number…',
+      ]);
       expect(asked?.choices?.[1]?.description).toContain(
         'About 21 AI requests with claude-haiku-5-5 (Anthropic)',
       );
       expect(summary.deferred).toBe(0);
       expect(tracker.applications).toHaveLength(105);
+    });
+
+    it('scores the number typed in, asking again until it fits', async () => {
+      await setUp();
+      const { deps: d, tracker } = deps(many());
+      const ui = new FakeUi(['other', '0', '200', 'ten', '102']);
+      const summary = await runHunt({ ...d, ui, interactive: true });
+
+      expect(ui.prompts.find((p) => p.type === 'input')?.message).toBe(
+        'How many jobs should the AI score? (1–105)',
+      );
+      expect(ui.rejected).toEqual([
+        'Type a whole number from 1 to 105',
+        'Type a whole number from 1 to 105',
+        'Type a whole number from 1 to 105',
+      ]);
+      expect(ui.output).toContain('About 21 AI requests.');
+      expect(tracker.applications).toHaveLength(102);
+      expect(summary.deferred).toBe(3);
     });
 
     it('keeps the limit when the default answer is taken', async () => {
