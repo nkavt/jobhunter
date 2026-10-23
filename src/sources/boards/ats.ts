@@ -72,7 +72,8 @@ export const ATS: Ats[] = [
   {
     id: 'lever',
     name: 'Lever',
-    site: 'jobs.lever.co',
+    // Covers jobs. and jobs.eu.; Lever's own pages that also match aren't boards and are skipped.
+    site: 'lever.co',
     boardFrom: (url) => {
       const slug = /^jobs(\.eu)?\.lever\.co$/.test(url.hostname) ? firstSegment(url) : undefined;
       return slug && url.hostname.includes('.eu.') ? `${LEVER_EU}${slug}` : slug;

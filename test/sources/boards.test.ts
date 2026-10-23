@@ -185,6 +185,8 @@ describe('board searches', () => {
     expect(queries).toHaveLength(ATS.length * 3);
     expect(queries[0]).toBe('site:greenhouse.io "Senior Backend Engineer"');
     expect(queries).toContain('site:apply.workable.com "Go Developer"');
+    // lever.co, so the EU boards (jobs.eu.lever.co) are found too.
+    expect(queries).toContain('site:lever.co "Go Developer"');
 
     const remote = boardQueries({
       ...profile,
@@ -237,6 +239,9 @@ describe('findCompanyBoards', () => {
             result('https://jobs.lever.co/lendbuzz/1'),
             result('https://jobs.lever.co/lendbuzz/2'),
             result('https://jobs.lever.co/portcast/3'),
+            result('https://jobs.eu.lever.co/acme/4'),
+            // `site:lever.co` also finds Lever's own pages; they aren't boards.
+            result('https://www.lever.co/pricing'),
             result('https://example.com/elsewhere'),
           ]);
         }, 1000),
@@ -249,18 +254,22 @@ describe('findCompanyBoards', () => {
     );
 
     expect(queries).toEqual([
-      'site:jobs.lever.co "Senior Backend Engineer"',
-      'site:jobs.lever.co "Platform Engineer"',
-      'site:jobs.lever.co "Go Developer"',
+      'site:lever.co "Senior Backend Engineer"',
+      'site:lever.co "Platform Engineer"',
+      'site:lever.co "Go Developer"',
     ]);
     expect(pauses).toEqual([1000, 1000]);
-    expect(found).toEqual({ searched: 3, added: 2, left: 0, failed: 0 });
-    expect(Object.keys(state.boards).sort()).toEqual(['lever:lendbuzz', 'lever:portcast']);
-    expect(state.searches['site:jobs.lever.co "Go Developer"']).toEqual({
+    expect(found).toEqual({ searched: 3, added: 3, left: 0, failed: 0 });
+    expect(Object.keys(state.boards).sort()).toEqual([
+      'lever:eu:acme',
+      'lever:lendbuzz',
+      'lever:portcast',
+    ]);
+    expect(state.searches['site:lever.co "Go Developer"']).toEqual({
       searchedAt: now.toISOString(),
-      found: 4 - 1,
+      found: 6 - 2,
     });
-    expect(ui.output).toContain('✔ Test Search: 2 new company job boards');
+    expect(ui.output).toContain('✔ Test Search: 3 new company job boards');
     // Saved as it goes.
     expect(await loadBoardState()).toEqual(state);
 
@@ -303,7 +312,7 @@ describe('findCompanyBoards', () => {
     expect(calls).toBe(2);
     expect(found.stopped?.reason).toBe('rate-limited');
     expect(found).toMatchObject({ searched: 1, left: 4 });
-    expect(Object.keys((await loadBoardState()).searches)).toEqual(['site:jobs.lever.co a']);
+    expect(Object.keys((await loadBoardState()).searches)).toEqual(['site:lever.co a']);
   });
 
   it('skips a search that fails on its own and tries it again next time', async () => {
@@ -325,12 +334,12 @@ describe('findCompanyBoards', () => {
     );
     expect(found).toMatchObject({ searched: 1, failed: 1, left: 1 });
     expect(found.lastFailure?.message).toBe('Search answered with HTTP 503.');
-    expect(Object.keys(state.searches)).toEqual(['site:jobs.lever.co b']);
+    expect(Object.keys(state.searches)).toEqual(['site:lever.co b']);
   });
 
   it('forgets searches for roles the profile no longer has', async () => {
     const state = emptyState();
-    state.searches['site:jobs.lever.co "Old Role"'] = { searchedAt: now.toISOString(), found: 0 };
+    state.searches['site:lever.co "Old Role"'] = { searchedAt: now.toISOString(), found: 0 };
     await findCompanyBoards(
       { ...profile, boardSearch: { queries: [] } },
       state,

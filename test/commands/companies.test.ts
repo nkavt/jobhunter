@@ -75,10 +75,7 @@ describe('jobhunter companies find', () => {
     );
     const result = await run(ui, e);
 
-    expect(e.queries).toEqual([
-      'site:jobs.lever.co "Backend Engineer"',
-      'site:jobs.lever.co "Go Developer"',
-    ]);
+    expect(e.queries).toEqual(['site:lever.co "Backend Engineer"', 'site:lever.co "Go Developer"']);
     expect(result).toMatchObject({ searched: 2, added: 2, left: 0 });
     expect(Object.keys((await loadBoardState()).boards).sort()).toEqual([
       'lever:acme',
