@@ -80,21 +80,23 @@ async function chooseProvider(ui: Ui, config: Config): Promise<Choose> {
   const choices: Choice<Choose>[] = [];
   if (aiName) {
     choices.push({
-      name: `${aiName}, with your AI key (recommended)`,
+      name: `${aiName}, with your AI key`,
       value: 'ai',
-      description: `No extra key. Each search is billed to your ${PROVIDER_NAMES[config.provider]} account, along with the tokens to read its results.`,
+      description: `No extra key, but slower, with fewer results, and the most expensive per search: each one is billed to your ${PROVIDER_NAMES[config.provider]} account, along with the tokens to read its results.`,
     });
   }
   choices.push(
     {
       name: 'SerpApi (Google results)',
       value: 'serpapi',
-      description: 'Fast and reliable. Needs a SerpApi API key.',
+      description:
+        'Fast, with the best results. 250 free searches a month. Needs a SerpApi API key.',
     },
     {
       name: 'Brave Search API',
       value: 'brave',
-      description: 'Fast, with up to 20 results per search. Needs a Brave Search API key.',
+      description:
+        'Fast, with up to 20 results per search. $5 of free credit a month. Needs a Brave Search API key.',
     },
     {
       name: 'DuckDuckGo (free, slow)',

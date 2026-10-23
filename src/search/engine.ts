@@ -17,7 +17,7 @@ export interface SearchEngine {
 
 /** DuckDuckGo's bot check answers when searches come closer together than this. */
 export const DUCKDUCKGO_PAUSE_MS = 45_000;
-/** Brave's free plan allows one search per second. */
+/** Brave's limit is per second and generous; a short pause keeps a run well under any plan's. */
 export const BRAVE_PAUSE_MS = 1_100;
 
 /**

@@ -179,11 +179,11 @@ Sets everything up. Run it once to start. Run it again any time to change one pa
    - **In a spreadsheet file on this computer** (the default). Give a file or a folder, or press Enter for `~/Documents/jobhunter.xlsx`. Missing folders are created after you confirm. If the file is already a Jobhunter sheet, it's reused with all its jobs. Any other existing file is never overwritten.
    - **In a Google Sheet.** Give the path to your OAuth client file ([how to get one](#setting-up-google-access)) and sign in with Google in your browser. Jobhunter then creates the sheet in a `Jobhunter` folder in your Drive and prints its link.
 6. **Company search.** Choose how [`jobhunter companies find`](#jobhunter-companies-find) searches the web for companies' own job boards:
-   - **Your AI's own web search** (Claude's web search, or Gemini with Google Search), offered first when your AI provider has one. No extra key; the searches are billed to your AI account.
-   - **[SerpApi](https://serpapi.com)** (Google results) or the **[Brave Search API](https://brave.com/search/api/)**. Fast; paste the service's API key.
+   - **Your AI's own web search** (Claude's web search, or Gemini with Google Search), offered first when your AI provider has one. No extra key, but the slowest and most expensive per search, billed to your AI account. OpenAI-compatible APIs can't search, so this isn't offered for them.
+   - **[SerpApi](https://serpapi.com/pricing)** (Google results, 250 free searches a month) or the **[Brave Search API](https://brave.com/search/api/)** ($5 of free credit a month). Fast and the best results; paste the service's API key.
    - **DuckDuckGo.** Free and needs no key, but slow: DuckDuckGo has no API, so Jobhunter reads its result pages like a browser and waits 45 seconds between searches. Searching everything takes about 10 minutes, and DuckDuckGo still blocks searches now and then.
 
-   Except for DuckDuckGo, Jobhunter checks your choice with one real search for your first role, and keeps the job boards it finds.
+   See [Choosing a search](#choosing-a-search) to compare them. Except for DuckDuckGo, Jobhunter checks your choice with one real search for your first role, and keeps the job boards it finds.
 
 **When you're already set up**, `init` asks what you'd like to change:
 
@@ -249,7 +249,7 @@ jobhunter hunt --min-score 70     # stricter: only strong matches go to To apply
 
 ### `jobhunter companies find`
 
-Many companies list jobs only on their own careers page, hosted by [Greenhouse](https://www.greenhouse.com), [Lever](https://www.lever.co), [Ashby](https://www.ashbyhq.com) or [Workable](https://www.workable.com). This command finds those boards by searching the web for your roles on each of these sites (for example `site:jobs.lever.co "Senior Frontend Engineer"`), and remembers them so every `hunt` reads them.
+Many companies list jobs only on their own careers page, hosted by [Greenhouse](https://www.greenhouse.com), [Lever](https://www.lever.co), [Ashby](https://www.ashbyhq.com) or [Workable](https://www.workable.com). This command finds those boards by searching the web for your roles on each of these sites (for example `site:lever.co "Senior Frontend Engineer"`), and remembers them so every `hunt` reads them.
 
 - It searches for your first 3 roles, plus "remote" if remote is your only work mode. With 4 sites that's 12 searches. To search for something else, see [Common tasks](#common-tasks).
 - It searches with what you chose in `jobhunter init` → **Company search**: your AI's web search, SerpApi, Brave Search or DuckDuckGo. Until you choose, it uses DuckDuckGo, which takes about 10 minutes for 12 searches.
@@ -260,6 +260,21 @@ Many companies list jobs only on their own careers page, hosted by [Greenhouse](
 jobhunter companies find           # the usual, about once a week
 jobhunter companies find --force   # search again now
 ```
+
+#### Choosing a search
+
+A full run is 12 searches a week (3 roles × 4 sites), about 50 a month, so every option below fits its free tier.
+
+| Search                                                                       | Key                  | Free                                                          | Speed     | Good to know                                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[SerpApi](https://serpapi.com/pricing)** (Google)                          | yes                  | 250 searches a month, 50 an hour                              | fast      | Google's own results, 10 per search. Paid plans start at $25 a month for 1,000.                                                                                                                                                                                                           |
+| **[Brave Search API](https://brave.com/search/api/)**                        | yes                  | $5 of credit every month, about 1,000 searches ($5 per 1,000) | fast      | Up to 20 results per search. Brave asks for a credit card when you sign up, to prevent abuse.                                                                                                                                                                                             |
+| **Your AI's web search** (Claude's web search, or Gemini with Google Search) | no, uses your AI key | none: billed to your AI account                               | slow      | The easiest to set up, but costs the most per search: the search itself, the tokens to read its results, and a second request to list the pages. The model writes the actual searches, so results are fewer and less predictable. An organisation admin can turn Claude's web search off. |
+| **DuckDuckGo**                                                               | no                   | free                                                          | very slow | DuckDuckGo has no API, so Jobhunter reads its result pages like a browser and waits 45 seconds between searches: about 10 minutes for 12 searches. It still blocks searches now and then.                                                                                                 |
+
+AI search is only offered when your AI provider has one. **OpenAI-compatible APIs (OpenAI, OpenRouter, Ollama…) can't search**: Chat Completions has no standard web search tool. With one of those, choose SerpApi, Brave or DuckDuckGo.
+
+Prices and free tiers are the services' own and can change; check the linked pages.
 
 ### `jobhunter sheet`
 

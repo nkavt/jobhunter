@@ -59,7 +59,7 @@ const init = (ui: FakeUi, engines = fakeEngines()) =>
 describe('jobhunter init: company search', () => {
   useTempHome();
 
-  it("says what it's for and recommends the AI's own search, DuckDuckGo last", async () => {
+  it("says what it's for and offers the AI's own search first, DuckDuckGo last", async () => {
     await setUp();
     const ui = new FakeUi(['search', 'skip']);
     await init(ui);
@@ -77,7 +77,8 @@ describe('jobhunter init: company search', () => {
       'duckduckgo',
       'skip',
     ]);
-    expect(prompt?.choices?.[0]?.name).toBe("Claude's web search, with your AI key (recommended)");
+    expect(prompt?.choices?.[0]?.name).toBe("Claude's web search, with your AI key");
+    expect(prompt?.choices?.[0]?.description).toContain('the most expensive per search');
     const duckduckgo = prompt?.choices?.find((c) => c.value === 'duckduckgo');
     expect(duckduckgo?.name).toContain('slow');
     expect(duckduckgo?.description).toContain('reads its result pages like a browser');
