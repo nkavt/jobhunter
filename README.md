@@ -219,7 +219,7 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
    Ignored jobs go to the **Ignored** tab with the reason. When a job doesn't say something (no salary, say), it isn't ignored for that.
 
-4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement. Jobs are sent in batches of 5, with up to four batches at a time.
+4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement. Jobs are sent in batches of 5, with up to four batches at a time. A run scores at most 100 jobs. When more pass your filters and you're running `hunt` in a terminal, it asks whether to score them all (with the number of AI requests that takes) or only the newest 100; from a script or cron it keeps the limit. The jobs over the limit aren't added to your sheet, and a later run picks them up while they're still listed.
 5. **Write to your sheet.** Jobs scoring at or above your cut-off (50 by default) go to **To apply**; the rest go to **Skipped**, with the note explaining why.
 6. **Print a summary:** how many jobs were found, known, ignored and scored, your 10 best matches with their notes, and how many AI tokens the run used. The last line says where your sheet is: its file path, or its link.
 
@@ -227,15 +227,15 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
 **Options**
 
-| Option                | What it does                                                                                       |
-| --------------------- | -------------------------------------------------------------------------------------------------- |
-| `-f, --force`         | Check every board, even ones checked in the last 6 hours.                                          |
-| `--dry-run`           | Show the results without writing anything to your sheet. Doesn't need Google to be connected.      |
-| `--no-ai`             | Skip the AI: every job that passes the filters goes to To apply, without a score or note. Free.    |
-| `--max-ai-jobs <n>`   | Score at most this many jobs per run (default 100). The rest wait for the next run.                |
-| `--since <days>`      | Ignore jobs posted more than this many days ago (default 30).                                      |
-| `--min-score <score>` | The score needed for To apply, for this run only (0–100).                                          |
-| `--parallel <n>`      | AI calls made at the same time (1–16). Default 4, or 1 for a model on your own machine or network. |
+| Option                | What it does                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| `-f, --force`         | Check every board, even ones checked in the last 6 hours.                                           |
+| `--dry-run`           | Show the results without writing anything to your sheet. Doesn't need Google to be connected.       |
+| `--no-ai`             | Skip the AI: every job that passes the filters goes to To apply, without a score or note. Free.     |
+| `--max-ai-jobs <n>`   | Score at most this many jobs per run (default 100), without asking. The rest wait for the next run. |
+| `--since <days>`      | Ignore jobs posted more than this many days ago (default 30).                                       |
+| `--min-score <score>` | The score needed for To apply, for this run only (0–100).                                           |
+| `--parallel <n>`      | AI calls made at the same time (1–16). Default 4, or 1 for a model on your own machine or network.  |
 
 Examples:
 

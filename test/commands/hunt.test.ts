@@ -2,7 +2,12 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { HuntSetupError, runHunt, type HuntDeps } from '../../src/commands/hunt/index.js';
+import {
+  DEFAULT_MAX_AI_JOBS,
+  HuntSetupError,
+  runHunt,
+  type HuntDeps,
+} from '../../src/commands/hunt/index.js';
 import {
   cvFile,
   instructionsFile,
@@ -35,7 +40,7 @@ import { readWorkbook } from '../../src/xlsx/index.js';
 import { useMockServer } from '../helpers/anthropic-mock.js';
 import { FakeLLM } from '../helpers/fake-llm.js';
 import { DERIVED_ANSWER } from '../helpers/fixtures.js';
-import { FakeUi, type DEFAULT } from '../helpers/fake-ui.js';
+import { DEFAULT, FakeUi } from '../helpers/fake-ui.js';
 import { saveGoogleSession } from '../helpers/google-session.js';
 import { useTempHome } from '../helpers/temp-home.js';
 
@@ -296,6 +301,55 @@ describe('jobhunter hunt', () => {
     expect(summary.deferred).toBe(1);
     expect(tracker.applications.map((a) => a.job.sourceId).sort()).toEqual(['newer', 'newest']);
     expect(ui.output.join('\n')).toContain("1 more jobs passed your filters but weren't scored");
+  });
+
+  describe('over the default limit', () => {
+    const many = () => ({
+      'board-a': Array.from({ length: DEFAULT_MAX_AI_JOBS + 5 }, (_, i) => job(`j${String(i)}`)),
+    });
+    const prompt = 'jobs passed your filters, more than the 100 a run scores by default';
+
+    it('asks in a terminal, and can score them all', async () => {
+      await setUp();
+      const { deps: d, tracker } = deps(many());
+      const ui = new FakeUi([DEFAULT_MAX_AI_JOBS + 5]);
+      const summary = await runHunt({ ...d, ui, interactive: true });
+
+      const asked = ui.prompts.find((p) => p.message.includes(prompt));
+      expect(asked?.message).toMatch(/^105 jobs passed/);
+      expect(asked?.choices?.map((c) => c.name)).toEqual(['The newest 100', 'All 105']);
+      expect(asked?.choices?.[1]?.description).toContain(
+        'About 21 AI requests with claude-haiku-5-5 (Anthropic)',
+      );
+      expect(summary.deferred).toBe(0);
+      expect(tracker.applications).toHaveLength(105);
+    });
+
+    it('keeps the limit when the default answer is taken', async () => {
+      await setUp();
+      const { deps: d } = deps(many());
+      const ui = new FakeUi([DEFAULT]);
+      const summary = await runHunt({ ...d, ui, interactive: true });
+      expect(summary.deferred).toBe(5);
+      expect(ui.output.join('\n')).toContain(
+        'Run `jobhunter hunt --max-ai-jobs <n>` to score more.',
+      );
+    });
+
+    it("doesn't ask without a terminal, or when --max-ai-jobs was given", async () => {
+      await setUp();
+      const quiet = deps(many());
+      expect((await runHunt({ ...quiet.deps, interactive: false })).deferred).toBe(5);
+      expect(quiet.ui.prompts).toEqual([]);
+
+      const flagged = deps(many());
+      const summary = await runHunt(
+        { ...flagged.deps, interactive: true },
+        { maxAiJobs: 100, force: true },
+      );
+      expect(summary.deferred).toBe(5);
+      expect(flagged.ui.prompts).toEqual([]);
+    });
   });
 
   it('applies a --min-score override', async () => {

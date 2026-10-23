@@ -9,7 +9,7 @@ import {
   type Profile,
 } from '../../config/index.js';
 import { filterJob, titleKeywords, titleMatches } from '../../filter/index.js';
-import { minScoreFor, scoreJobs } from '../../fit/index.js';
+import { BATCH_SIZE, minScoreFor, scoreJobs } from '../../fit/index.js';
 import {
   loadCredentials,
   loadToken,
@@ -20,6 +20,7 @@ import type { Job } from '../../jobs/index.js';
 import {
   defaultParallelCalls,
   getAdapterName,
+  getConfiguredAdapterName,
   type Connection,
   type LLMAdapter,
   type Usage,
@@ -72,7 +73,10 @@ export interface HuntOptions {
   dryRun?: boolean;
   /** `false` skips the AI: every job that passes the filters goes to "To apply". */
   ai?: boolean;
-  /** At most this many jobs are scored per run; the rest wait for a later run. */
+  /**
+   * At most this many jobs are scored per run; the rest wait for a later run. Without it, a run
+   * in a terminal asks before going over the default.
+   */
   maxAiJobs?: number;
   /** Drop jobs posted longer ago than this. */
   sinceDays?: number;
@@ -321,7 +325,11 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   // AI score (newest first, so a cap keeps the freshest jobs)
   const minScore = options.minScore ?? minScoreFor(profile.preferences);
   passed.sort((a, b) => (b.job.postedAt ?? '').localeCompare(a.job.postedAt ?? ''));
-  const maxAiJobs = options.maxAiJobs ?? DEFAULT_MAX_AI_JOBS;
+  let maxAiJobs = options.maxAiJobs ?? DEFAULT_MAX_AI_JOBS;
+  const interactive = deps.interactive ?? (process.stdin.isTTY && process.stdout.isTTY);
+  if (useAi && passed.length > maxAiJobs && options.maxAiJobs === undefined && interactive) {
+    maxAiJobs = await askHowManyToScore(ui, passed.length, maxAiJobs, config);
+  }
   const toScore = useAi ? passed.slice(0, maxAiJobs) : passed;
   summary.deferred = passed.length - toScore.length;
 
@@ -370,7 +378,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   summary.skipped = tracked.length - summary.toApply;
   await write({ applications: tracked });
 
-  report(ui, summary, tracked, options);
+  report(ui, summary, tracked, maxAiJobs, options);
   if (summary.pending > 0) {
     ui.warn(
       `Your sheet was open, so ${String(summary.pending)} jobs were kept in ${pendingPath}. The next \`jobhunter hunt\` adds them.`,
@@ -383,7 +391,39 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   return summary;
 }
 
-function report(ui: Ui, summary: HuntSummary, tracked: TrackedJob[], options: HuntOptions): void {
+/** More jobs passed than a run scores by default: score them all, or only the newest? */
+async function askHowManyToScore(
+  ui: Ui,
+  passed: number,
+  cap: number,
+  config: Parameters<typeof getConfiguredAdapterName>[0],
+): Promise<number> {
+  const calls = (jobs: number) => Math.ceil(jobs / BATCH_SIZE);
+  return ui.select({
+    message: `${String(passed)} jobs passed your filters, more than the ${String(cap)} a run scores by default. How many should the AI score?`,
+    choices: [
+      {
+        name: `The newest ${String(cap)}`,
+        value: cap,
+        description: `About ${String(calls(cap))} AI requests. The rest aren't added to your sheet; a later run picks them up while they're still listed.`,
+      },
+      {
+        name: `All ${String(passed)}`,
+        value: passed,
+        description: `About ${String(calls(passed))} AI requests with ${getConfiguredAdapterName(config)}, billed to your AI account. A large run can take a while, or run into your provider's rate limits.`,
+      },
+    ],
+    default: cap,
+  });
+}
+
+function report(
+  ui: Ui,
+  summary: HuntSummary,
+  tracked: TrackedJob[],
+  maxAiJobs: number,
+  options: HuntOptions,
+): void {
   const best = tracked.filter((item) => item.status === 'To apply').slice(0, 10);
   if (best.length > 0) {
     ui.info('');
@@ -412,7 +452,7 @@ function report(ui: Ui, summary: HuntSummary, tracked: TrackedJob[], options: Hu
   }
   if (summary.deferred > 0) {
     ui.info(
-      `${String(summary.deferred)} more jobs passed your filters but weren't scored (limit ${String(options.maxAiJobs ?? DEFAULT_MAX_AI_JOBS)} per run); a later run picks them up while they're still listed.`,
+      `${String(summary.deferred)} more jobs passed your filters but weren't scored (limit ${String(maxAiJobs)} per run); a later run picks them up while they're still listed. Run \`jobhunter hunt --max-ai-jobs <n>\` to score more.`,
     );
   }
   if (options.dryRun) ui.info(dim('Dry run: nothing was written to your sheet.'));

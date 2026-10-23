@@ -7,6 +7,8 @@ import { describeJob, describePreferences } from './describe.js';
 
 /** Score a job needs to land in "To apply" when the user hasn't set `preferences.minScore`. */
 export const DEFAULT_MIN_SCORE = 50;
+/** Jobs sent to the AI in one request. */
+export const BATCH_SIZE = 5;
 
 /** The user's cut-off: their `minScore` preference, or the default. */
 export function minScoreFor(preferences: Preferences | undefined): number {
@@ -82,7 +84,7 @@ export async function scoreJobs(
   llm: LLMAdapter,
   options: ScoreOptions = {},
 ): Promise<{ fits: Fit[]; usage: Usage }> {
-  const batchSize = options.batchSize ?? 5;
+  const batchSize = options.batchSize ?? BATCH_SIZE;
   const maxDescriptionChars = options.maxDescriptionChars ?? 4000;
   const system = renderSystemPrompt('job-fit', {
     candidate: candidate.instructions.trim(),
