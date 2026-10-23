@@ -16,7 +16,7 @@ import {
   spreadsheetUrl,
   type GoogleClient,
 } from '../../google/index.js';
-import { groupSameJobs, jobKey, withAllLocations, type Job } from '../../jobs/index.js';
+import { groupSameJobs, jobKey, type Job, type SameJob } from '../../jobs/index.js';
 import {
   defaultParallelCalls,
   getAdapterName,
@@ -119,7 +119,7 @@ export interface HuntSummary {
   fetched: number;
   known: number;
   /** The same posting more than once in this run: listed again, or on two boards with one link. */
-  repeated: number;
+  duplicates: number;
   ignored: number;
   toApply: number;
   skipped: number;
@@ -208,7 +208,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   const summary: HuntSummary = {
     fetched: 0,
     known: 0,
-    repeated: 0,
+    duplicates: 0,
     ignored: 0,
     toApply: 0,
     skipped: 0,
@@ -305,19 +305,9 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
         () => 'Checked your sheet',
       )
     : new Set<string>();
-  // A board can list one posting several times (Workable lists it once per location).
-  const seen = new Set<string>();
-  const fresh: Found[] = [];
-  for (const item of found) {
-    if (isKnown(known, item.job)) {
-      summary.known++;
-    } else if (isKnown(seen, item.job)) {
-      summary.repeated++;
-    } else {
-      for (const marker of knownMarkers(jobKey(item.job), item.job.url)) seen.add(marker);
-      fresh.push(item);
-    }
-  }
+  const { fresh, inSheet, duplicates } = splitFound(found, known);
+  summary.known = inSheet;
+  summary.duplicates = duplicates;
 
   // Code filters
   const ignored: IgnoredJob[] = [];
@@ -346,15 +336,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   }
   const toScore = useAi ? jobs.slice(0, maxAiJobs) : jobs;
   summary.deferred = jobs.length - toScore.length;
-  // The other copies go to Ignored, so they aren't judged again on the next run. Copies of
-  // deferred jobs wait with them, so the job is judged with all its locations later.
-  const copies: IgnoredJob[] = toScore.flatMap(({ others }) =>
-    others.map((item) => ({
-      ...item,
-      reason: `same job as the one in Applications, posted in ${item.job.location.text ?? 'another location'}`,
-      foundAt: now,
-    })),
-  );
+  const copies = sameJobCopies(toScore, now);
   summary.sameJob = copies.length;
 
   let tracked: TrackedJob[];
@@ -378,12 +360,11 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
       `${scoring}… 0/${String(toScore.length)}`,
       (update) =>
         scoreJobs(
-          toScore.map(({ first, others }) =>
-            withAllLocations({ first: first.job, others: others.map((item) => item.job) }),
-          ),
+          toScore.map(({ first }) => first.job),
           { cv, instructions, preferences: profile.preferences },
           llm,
           {
+            copies: toScore.map(({ others }) => others.map((item) => item.job)),
             concurrency: options.parallel ?? defaultParallelCalls(config),
             onBatch: (done, total) => {
               update(`${scoring}… ${String(done)}/${String(total)}`);
@@ -420,6 +401,45 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     else if (profile.sheet) ui.info(`Your sheet: ${spreadsheetUrl(profile.sheet.spreadsheetId)}`);
   }
   return summary;
+}
+
+/**
+ * Jobs not in the sheet yet, each once. A board can list one posting several times (Workable
+ * lists it once per location), and the same listing can be on two boards with one link.
+ */
+function splitFound(
+  found: readonly Found[],
+  known: ReadonlySet<string>,
+): { fresh: Found[]; inSheet: number; duplicates: number } {
+  const seen = new Set<string>();
+  const fresh: Found[] = [];
+  let inSheet = 0;
+  let duplicates = 0;
+  for (const item of found) {
+    if (isKnown(known, item.job)) {
+      inSheet++;
+    } else if (isKnown(seen, item.job)) {
+      duplicates++;
+    } else {
+      for (const marker of knownMarkers(jobKey(item.job), item.job.url)) seen.add(marker);
+      fresh.push(item);
+    }
+  }
+  return { fresh, inSheet, duplicates };
+}
+
+/**
+ * The other copies of each job being judged, for Ignored, so they aren't judged again on the next
+ * run. Copies of deferred jobs wait with them, so a job is always judged with all its locations.
+ */
+function sameJobCopies(jobs: readonly SameJob<Found>[], now: Date): IgnoredJob[] {
+  return jobs.flatMap(({ others }) =>
+    others.map((item) => ({
+      ...item,
+      reason: `same job as the one in Applications, posted in ${item.job.location.text ?? 'another location'}`,
+      foundAt: now,
+    })),
+  );
 }
 
 /** More jobs passed than a run scores by default: score them all, only the newest, or a number? */
@@ -491,16 +511,27 @@ function report(
   }
 
   ui.info('');
-  const fresh = summary.fetched - summary.known - summary.repeated;
+  const fresh = summary.fetched - summary.known - summary.duplicates;
+  /** "12 Skipped · 3 To apply"; optional counts are left out when they are zero. */
+  const counts = (parts: [number, string, 'optional'?][]) =>
+    parts
+      .filter(([count, , optional]) => count > 0 || !optional)
+      .map(([count, label]) => `${String(count)} ${label}`)
+      .join(' · ');
   ui.success(
-    `${String(summary.fetched)} jobs · ${String(summary.known)} already in your sheet · ` +
-      (summary.repeated > 0 ? `${String(summary.repeated)} duplicates · ` : '') +
-      `${String(fresh)} new → ` +
-      `${String(summary.ignored)} ignored by your filters · ` +
-      (summary.sameJob > 0
-        ? `${String(summary.sameJob)} copies of a job in other locations · `
-        : '') +
-      `${String(summary.toApply)} To apply · ${String(summary.skipped)} Skipped`,
+    counts([
+      [summary.fetched, 'jobs'],
+      [summary.known, 'already in your sheet'],
+      [summary.duplicates, 'duplicates', 'optional'],
+      [fresh, 'new'],
+    ]) +
+      ' → ' +
+      counts([
+        [summary.ignored, 'ignored by your filters'],
+        [summary.sameJob, 'copies of a job in other locations', 'optional'],
+        [summary.toApply, 'To apply'],
+        [summary.skipped, 'Skipped'],
+      ]),
   );
   if (summary.usage) {
     const k = (n: number) => `${(n / 1000).toFixed(1)}k`;

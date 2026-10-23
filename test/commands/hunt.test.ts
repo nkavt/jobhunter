@@ -193,7 +193,7 @@ describe('jobhunter hunt', () => {
     expect(summary).toMatchObject({
       fetched: 6,
       known: 1,
-      repeated: 1,
+      duplicates: 1,
       ignored: 2,
       toApply: 1,
       skipped: 1,
@@ -294,13 +294,9 @@ describe('jobhunter hunt', () => {
 
   it('judges a job posted once per location once, and puts the other copies in Ignored', async () => {
     await setUp();
-    const posted = (id: string, place: string, postedAt = '2026-10-10T10:00:00.000Z') =>
-      job(id, {
-        title: `Lead Frontend Engineer - ${place}`,
-        company: 'Bjak',
-        location: { text: place, regions: [place] },
-        postedAt,
-      });
+    const posted = (id: string, title: string, place: string, patch: Partial<Job> = {}) =>
+      job(id, { title, company: 'Bjak', location: { text: place, regions: [place] }, ...patch });
+    const older = { postedAt: '2026-10-01T00:00:00.000Z' };
     const {
       deps: d,
       ui,
@@ -308,18 +304,12 @@ describe('jobhunter hunt', () => {
       llm,
     } = deps({
       'board-a': [
-        posted('vn', 'Vietnam'),
-        posted('de', 'Germany'),
+        posted('vn', 'Lead Frontend Engineer - Vietnam', 'Vietnam'),
+        posted('de', 'Lead Frontend Engineer - Germany', 'Germany'),
         job('other', { title: 'Senior Frontend Engineer 90', company: 'Bjak' }),
         // Another job, older: over the limit it waits, copies and all.
-        {
-          ...posted('later-vn', 'Vietnam', '2026-10-01T00:00:00.000Z'),
-          title: 'Staff Frontend Engineer (Vietnam)',
-        },
-        {
-          ...posted('later-de', 'Germany', '2026-10-01T00:00:00.000Z'),
-          title: 'Staff Frontend Engineer (Germany)',
-        },
+        posted('later-vn', 'Staff Frontend Engineer (Vietnam)', 'Vietnam', older),
+        posted('later-de', 'Staff Frontend Engineer (Germany)', 'Germany', older),
       ],
     });
 
@@ -327,7 +317,7 @@ describe('jobhunter hunt', () => {
 
     const prompt = (llm.calls[0]?.request as JsonRequest<unknown> | undefined)?.prompt ?? '';
     expect(prompt).toContain('Title: Lead Frontend Engineer - Vietnam\n');
-    expect(prompt).toContain('Location: Vietnam (remote); Germany (remote)\n');
+    expect(prompt).toContain('Posted in: Vietnam (remote); Germany (remote)\n');
     expect(prompt).not.toContain('Lead Frontend Engineer - Germany');
     expect(tracker.applications.map((a) => a.job.sourceId).sort()).toEqual(['other', 'vn']);
     expect(tracker.ignored.map((i) => [i.job.sourceId, i.reason])).toEqual([

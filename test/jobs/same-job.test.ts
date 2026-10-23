@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupSameJobs, sameJobKey, withAllLocations, type Job } from '../../src/jobs/index.js';
+import { groupSameJobs, sameJobKey, type Job } from '../../src/jobs/index.js';
 
 const job = (id: string, title: string, place?: string, patch: Partial<Job> = {}): Job => ({
   source: 'greenhouse',
@@ -39,21 +39,5 @@ describe('same job in several locations', () => {
       { first: germany, others: [vietnam] },
       { first: other, others: [] },
     ]);
-  });
-
-  it('shows the AI every location, each with its work mode', () => {
-    const germany = job('de', 'Lead Engineer - Germany', 'Germany', { workMode: 'remote' });
-    const tokyo = job('jp', 'Lead Engineer - Tokyo', 'Tokyo, Japan', { workMode: 'hybrid' });
-    const anywhere = job('ww', 'Lead Engineer', undefined, {
-      location: { worldwide: true, regions: [] },
-    });
-    const seen = withAllLocations({ first: germany, others: [tokyo, anywhere] });
-    expect(seen.location).toEqual({
-      text: 'Germany (remote); Tokyo, Japan (hybrid); anywhere',
-      regions: ['Germany', 'Tokyo', 'Japan'],
-    });
-    expect(seen.workMode).toBeUndefined();
-    expect(seen.url).toBe(germany.url);
-    expect(withAllLocations({ first: germany, others: [] })).toBe(germany);
   });
 });

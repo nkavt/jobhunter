@@ -252,6 +252,19 @@ describe('describing jobs and preferences for the AI', () => {
     );
   });
 
+  it('lists every place a job was posted in, each with its work mode', () => {
+    const at = (n: number, text: string, patch: Partial<Job> = {}) =>
+      job(n, { location: { text, regions: [text] }, ...patch });
+    const text = describeJob(at(1, 'Germany', { workMode: 'remote' }), 'j1', 100, [
+      at(2, 'Tokyo, Japan', { workMode: 'hybrid' }),
+      at(3, 'Germany', { workMode: 'remote' }),
+      job(4),
+    ]);
+    expect(text).toContain('\nPosted in: Germany (remote); Tokyo, Japan (hybrid); anywhere\n');
+    expect(text).not.toContain('Location:');
+    expect(text).not.toContain('Work mode:');
+  });
+
   it('describes preferences in plain sentences', () => {
     expect(describePreferences(preferences)).toBe(
       [

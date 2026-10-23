@@ -32,6 +32,8 @@ export interface ScoreOptions {
   /** Batches scored at the same time, after the first (default 4). */
   concurrency?: number;
   maxDescriptionChars?: number;
+  /** Other postings of each job, by index (the same job in other locations), shown with it. */
+  copies?: readonly (readonly Job[])[];
   /** Called after each batch, e.g. to update a progress line. */
   onBatch?: (done: number, total: number) => void;
 }
@@ -110,7 +112,14 @@ export async function scoreJobs(
       cacheSystem: true,
       prompt: renderUserPrompt('job-fit', {
         jobs: batch
-          .map((job, i) => describeJob(job, uids[i] ?? '', maxDescriptionChars))
+          .map((job, i) =>
+            describeJob(
+              job,
+              uids[i] ?? '',
+              maxDescriptionChars,
+              options.copies?.[index * batchSize + i],
+            ),
+          )
           .join('\n\n'),
       }),
       schema: batchSchema(uids),
