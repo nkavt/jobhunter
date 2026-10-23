@@ -1,5 +1,5 @@
 import mammoth from 'mammoth';
-import { extractText } from 'unpdf';
+import { extractText, getDocumentProxy } from 'unpdf';
 
 /** A document that can't be read, or has no text in it. The message is meant for the user. */
 export class DocumentError extends Error {
@@ -13,8 +13,10 @@ export class DocumentError extends Error {
 export async function pdfText(data: Uint8Array, name = 'this PDF'): Promise<string> {
   let text: string;
   try {
-    // A copy: PDF.js takes ownership of the buffer it's given.
-    ({ text } = await extractText(new Uint8Array(data), { mergePages: true }));
+    // A copy: PDF.js takes ownership of the buffer it's given. `verbosity: 0` keeps its warnings
+    // (fonts it has no data for, a damaged index…) out of the terminal; errors still throw.
+    const pdf = await getDocumentProxy(new Uint8Array(data), { verbosity: 0 });
+    ({ text } = await extractText(pdf, { mergePages: true }));
   } catch (error) {
     throw new DocumentError(`Can't read ${name}. Is it a valid PDF?`, { cause: error });
   }

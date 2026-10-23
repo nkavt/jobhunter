@@ -19,6 +19,22 @@ describe('pdfText', () => {
     await expect(pdfText(pdfWithText('Alex Doe, Engineer'))).resolves.toBe('Alex Doe, Engineer');
   });
 
+  it('reads a PDF that makes PDF.js warn, keeping the warning out of the terminal', async () => {
+    // A wrong `startxref` offset: PDF.js warns "Indexing all PDF objects" and reads it anyway.
+    const pdf = new TextDecoder().decode(pdfWithText('Alex'));
+    const damaged = bytes(pdf.replace(/startxref\n\d+/, 'startxref\n9'));
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      await expect(pdfText(damaged)).resolves.toBe('Alex');
+      expect(log).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+      warn.mockRestore();
+    }
+  });
+
   it('fails clearly on a file that is not a PDF, naming it', async () => {
     const error = pdfText(new Uint8Array([1, 2, 3]), 'cv.pdf');
     await expect(error).rejects.toThrow(DocumentError);
