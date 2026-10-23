@@ -56,7 +56,7 @@ const init = (ui: FakeUi, engines = fakeEngines()) =>
     searchEngineFor: engines.engineFor,
   });
 
-describe('jobhunter init: company search', () => {
+describe('jobhunter init: web search', () => {
   useTempHome();
 
   it("says what it's for and offers the AI's own search first, DuckDuckGo last", async () => {
@@ -65,11 +65,9 @@ describe('jobhunter init: company search', () => {
     await init(ui);
 
     expect(ui.output.join('\n')).toContain(
-      'Jobhunter finds those pages by searching the web for your roles',
+      "Jobhunter searches the web to find companies' own job boards",
     );
-    const prompt = ui.prompts.find(
-      (p) => p.message === 'How should Jobhunter search for companies?',
-    );
+    const prompt = ui.prompts.find((p) => p.message === 'Which web search should Jobhunter use?');
     expect(prompt?.choices?.map((c) => c.value)).toEqual([
       'ai',
       'serpapi',
@@ -85,13 +83,31 @@ describe('jobhunter init: company search', () => {
     expect((await readConfig())?.search).toBeUndefined();
   });
 
+  it('warns Gemini users up front that Google Search needs billing', async () => {
+    await setUp({ ...config, provider: 'gemini', model: 'gemini-3.1-flash-lite' });
+    const ui = new FakeUi(['search', 'skip']);
+    await init(ui);
+    const prompt = ui.prompts.find((p) => p.message === 'Which web search should Jobhunter use?');
+    const ai = prompt?.choices?.[0];
+    expect(ai?.name).toBe('Gemini with Google Search, with your AI key');
+    expect(ai?.description).toContain(
+      "BTW: on Gemini's free tier, Gemini 3 models can't use Google Search at all.",
+    );
+    // Claude has no such note.
+    await setUp();
+    const claude = new FakeUi(['search', 'skip']);
+    await init(claude);
+    expect(
+      claude.prompts.find((p) => p.message === 'Which web search should Jobhunter use?')
+        ?.choices?.[0]?.description,
+    ).not.toContain('BTW');
+  });
+
   it("doesn't offer AI search for an OpenAI-compatible API, which has none", async () => {
     await setUp({ ...config, provider: 'openai', baseURL: 'https://openrouter.ai/api/v1' });
     const ui = new FakeUi(['search', 'skip']);
     await init(ui);
-    const prompt = ui.prompts.find(
-      (p) => p.message === 'How should Jobhunter search for companies?',
-    );
+    const prompt = ui.prompts.find((p) => p.message === 'Which web search should Jobhunter use?');
     expect(prompt?.choices?.map((c) => c.value)).toEqual([
       'serpapi',
       'brave',
@@ -154,7 +170,7 @@ describe('jobhunter init: company search', () => {
     await setUp(config, { roles: false });
     const ui = new FakeUi(['search']);
     await init(ui);
-    expect(ui.output.join('\n')).toContain('Company search looks for your roles');
+    expect(ui.output.join('\n')).toContain('The web search looks for your roles');
     expect(ui.remainingAnswers).toBe(0);
   });
 

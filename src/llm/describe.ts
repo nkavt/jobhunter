@@ -27,6 +27,14 @@ export const WEB_SEARCH_NAMES: Record<Provider, string | undefined> = {
   openai: undefined,
 };
 
+/** What to know before choosing the provider's web search; shown in `init` and with its errors. */
+export const WEB_SEARCH_NOTES: Record<Provider, string | undefined> = {
+  claude: undefined,
+  gemini:
+    "BTW: on Gemini's free tier, Gemini 3 models can't use Google Search at all. Turn on billing for your Google AI Studio project (5,000 free searches a month), or use another search.",
+  openai: undefined,
+};
+
 /** Which model is doing the work, for messages: `claude-sonnet-5-5 (Anthropic)`. */
 export function getAdapterName(adapter: Pick<LLMAdapter, 'model' | 'providerName'>): string {
   return `${adapter.model} (${adapter.providerName})`;

@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { InvalidKeyError, RateLimitError } from '../../src/llm/index.js';
+import { InvalidKeyError, RateLimitError, WebSearchUnavailableError } from '../../src/llm/index.js';
 import { searchWithAi, SearchError } from '../../src/search/index.js';
 import { useMockServer } from '../helpers/anthropic-mock.js';
 import { FakeLLM } from '../helpers/fake-llm.js';
@@ -69,5 +69,13 @@ describe('searchWithAi', () => {
     ).catch((e: unknown) => e)) as SearchError;
     expect(busy.reason).toBe('rate-limited');
     expect(busy.message).toBe('Too many requests.');
+
+    // Search not in the plan: stop, since every search would fail the same way.
+    const unavailable = (await searchWithAi(
+      'q',
+      failing(new WebSearchUnavailableError('No Google Search on this plan. BTW: …', 'gemini')),
+    ).catch((e: unknown) => e)) as SearchError;
+    expect(unavailable.reason).toBe('out-of-searches');
+    expect(unavailable.message).toBe('No Google Search on this plan. BTW: …');
   });
 });

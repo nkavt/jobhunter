@@ -9,8 +9,8 @@ export const ProviderSchema = z.enum(['claude', 'gemini', 'openai']);
 export type Provider = z.infer<typeof ProviderSchema>;
 
 /**
- * How `companies find` searches the web for companies' job boards. `ai` uses the AI provider's
- * own web search, with the key above.
+ * Which web search Jobhunter uses (today by `companies find`, for companies' job boards). `ai`
+ * uses the AI provider's own web search, with the key above.
  */
 export const SearchConfigSchema = z.discriminatedUnion('provider', [
   z.object({ provider: z.literal('ai') }),

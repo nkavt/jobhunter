@@ -13,6 +13,7 @@ import {
   ModelUnavailableError,
   NetworkError,
   RateLimitError,
+  WebSearchUnavailableError,
 } from '../../../src/llm/index.js';
 import { useMockServer, type CapturedRequest } from '../../helpers/anthropic-mock.js';
 
@@ -353,5 +354,41 @@ describe('GeminiAdapter: searchJSON', () => {
     expect(result.usage.webSearches).toBe(2);
     expect(requests[0]?.body.tools).toEqual([{ googleSearch: {} }]);
     expect(JSON.stringify(requests[1]?.body.contents)).toContain('Acme is hiring');
+  });
+
+  const search = () =>
+    adapter()
+      .searchJSON({ prompt: 'Find companies', schema: z.object({}) })
+      .catch((e: unknown) => e);
+
+  it('explains a quota error with no retry delay: Google Search is not in the free tier', async () => {
+    server.use(
+      generateHandler(
+        googleError(
+          429,
+          'RESOURCE_EXHAUSTED',
+          'You exceeded your current quota, please check your plan and billing details. ',
+        ),
+      ).handler,
+    );
+    const error = await search();
+    expect(error).toBeInstanceOf(WebSearchUnavailableError);
+    expect((error as Error).message).toBe(
+      'Gemini answered "You exceeded your current quota, please check your plan and billing details" to a Google Search request. ' +
+        "BTW: on Gemini's free tier, Gemini 3 models can't use Google Search at all. Turn on billing for your Google AI Studio project (5,000 free searches a month), or use another search.",
+    );
+  });
+
+  it('keeps a quota error with a retry delay as a rate limit', async () => {
+    server.use(
+      generateHandler(
+        googleError(429, 'RESOURCE_EXHAUSTED', 'You exceeded your current quota', [
+          { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '20s' },
+        ]),
+      ).handler,
+    );
+    const error = await search();
+    expect(error).toBeInstanceOf(RateLimitError);
+    expect((error as RateLimitError).retryAfterMs).toBe(20_000);
   });
 });

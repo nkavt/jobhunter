@@ -77,7 +77,7 @@ export async function runCompaniesFind(
   if (!config.search) {
     ui.info(
       dim(
-        'Searching DuckDuckGo. For a faster search, run `jobhunter init` → Company search and pick another one.',
+        'Searching DuckDuckGo. For a faster search, run `jobhunter init` → Web search and pick another one.',
       ),
     );
   }
@@ -101,7 +101,7 @@ export async function runCompaniesFind(
     const next =
       result.stopped.reason === 'rate-limited'
         ? `The remaining ${String(result.left)} searches run next time.`
-        : 'Run `jobhunter init` → Company search to fix it or pick another search.';
+        : 'Run `jobhunter init` → Web search to fix it or pick another search.';
     ui.warn(`${result.stopped.message} ${next}`);
   }
   if (result.failed > 0) {

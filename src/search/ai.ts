@@ -4,6 +4,7 @@ import {
   InvalidKeyError,
   LLMError,
   RateLimitError,
+  WebSearchUnavailableError,
   type LLMAdapter,
 } from '../llm/index.js';
 import { USER_AGENT } from '../sources/fetch.js';
@@ -57,7 +58,8 @@ function searchError(error: unknown, providerName: string): unknown {
   const reason =
     error instanceof InvalidKeyError
       ? 'bad-key'
-      : error instanceof InsufficientCreditError
+      : // Search turned off, or not in the plan: every search would fail the same way.
+        error instanceof InsufficientCreditError || error instanceof WebSearchUnavailableError
         ? 'out-of-searches'
         : error instanceof RateLimitError
           ? 'rate-limited'

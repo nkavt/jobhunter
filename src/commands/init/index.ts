@@ -27,7 +27,7 @@ export interface InitDeps {
   openBrowser: (url: string) => void;
   /** Build an adapter; the model only matters for generating (CV conversion etc.). */
   connect: (connection: Connection, model?: string) => LLMAdapter;
-  /** The company search's test search; tests replace it with a fake engine. */
+  /** The web search's test search; tests replace it with a fake engine. */
   searchEngineFor?: SearchStepDeps['engineFor'];
 }
 
@@ -96,7 +96,7 @@ async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
       { name: 'CV (also updates your preferences and candidate profile)', value: 'cv' },
       { name: 'Preferences and candidate profile', value: 'profile' },
       { name: 'Tracking sheet (local file or Google Sheet)', value: 'sheet' },
-      { name: "Company search (finds companies' own job boards)", value: 'search' },
+      { name: "Web search (finds companies' own job boards)", value: 'search' },
       { name: 'Nothing, exit', value: 'none' },
     ],
     default: 'none',

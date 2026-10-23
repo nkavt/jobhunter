@@ -8,6 +8,7 @@ import {
 import {
   PROVIDER_NAMES,
   WEB_SEARCH_NAMES,
+  WEB_SEARCH_NOTES,
   type Connection,
   type LLMAdapter,
 } from '../../llm/index.js';
@@ -47,19 +48,19 @@ export async function setupSearch(deps: SearchStepDeps, config: Config): Promise
   const profile = await readProfile(config.activeProfile);
   if (!profile?.derived && !profile?.boardSearch) {
     ui.info(
-      'Company search looks for your roles, which come from your CV. Run `jobhunter init` again once your CV is imported.',
+      'The web search looks for your roles, which come from your CV. Run `jobhunter init` again once your CV is imported.',
     );
     return config;
   }
   ui.info('');
   ui.info(
-    "Many companies post jobs only on their own careers page, hosted by Greenhouse, Lever, Ashby or Workable. Jobhunter finds those pages by searching the web for your roles (`jobhunter companies find`), and `hunt` reads them from then on. That search is what you're choosing here.",
+    "Jobhunter searches the web to find companies' own job boards: many companies post jobs only on their own careers page, hosted by Greenhouse, Lever, Ashby or Workable. `jobhunter companies find` searches for your roles there, and `hunt` reads the boards it finds from then on. Choose which web search it uses.",
   );
 
   let provider = await chooseProvider(ui, config);
   for (;;) {
     if (provider === 'skip') {
-      ui.info('Skipped. Run `jobhunter init` again to choose how to search for companies.');
+      ui.info('Skipped. Run `jobhunter init` again to choose a web search.');
       return config;
     }
     const search = await searchConfig(ui, provider, config.search);
@@ -79,10 +80,11 @@ async function chooseProvider(ui: Ui, config: Config): Promise<Choose> {
   const aiName = WEB_SEARCH_NAMES[config.provider];
   const choices: Choice<Choose>[] = [];
   if (aiName) {
+    const note = WEB_SEARCH_NOTES[config.provider];
     choices.push({
       name: `${aiName}, with your AI key`,
       value: 'ai',
-      description: `No extra key, but slower, with fewer results, and the most expensive per search: each one is billed to your ${PROVIDER_NAMES[config.provider]} account, along with the tokens to read its results.`,
+      description: `No extra key, but slower, with fewer results, and the most expensive per search: each one is billed to your ${PROVIDER_NAMES[config.provider]} account, along with the tokens to read its results.${note ? ` ${note}` : ''}`,
     });
   }
   choices.push(
@@ -108,7 +110,7 @@ async function chooseProvider(ui: Ui, config: Config): Promise<Choose> {
   );
   const fallback = config.search?.provider ?? choices[0]?.value;
   return ui.select<Choose>({
-    message: 'How should Jobhunter search for companies?',
+    message: 'Which web search should Jobhunter use?',
     choices,
     ...(fallback && choices.some((c) => c.value === fallback) ? { default: fallback } : {}),
   });

@@ -115,7 +115,7 @@ describe('jobhunter companies find', () => {
     expect(result?.stopped?.reason).toBe('bad-key');
     expect(ui.output).toContain('✔ Test Search: no search went through');
     expect(ui.output.join('\n')).toContain(
-      "⚠ Brave Search didn't accept the API key. Run `jobhunter init` → Company search",
+      "⚠ Brave Search didn't accept the API key. Run `jobhunter init` → Web search",
     );
   });
 
