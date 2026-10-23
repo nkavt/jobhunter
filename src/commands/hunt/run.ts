@@ -8,7 +8,7 @@ import {
   sheetBackupFile,
   type Profile,
 } from '../../config/index.js';
-import { filterJob, titleKeywords, titleMatches } from '../../filter/index.js';
+import { companyTitleFilter, filterJob } from '../../filter/index.js';
 import { BATCH_SIZE, minScoreFor, scoreJobs } from '../../fit/index.js';
 import {
   loadCredentials,
@@ -241,15 +241,16 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   await saveSourceState(state);
 
   // Companies' own job boards, found by `jobhunter companies find`. A board lists every job the
-  // company has, so only titles matching the roles go on; the rest would flood the Ignored tab.
-  const keywords = titleKeywords(profile.derived);
+  // company has, so only titles matching the roles and level go on; the rest would flood the
+  // Ignored tab and the AI.
+  const titleFits = companyTitleFilter(profile.derived);
   const boardJobs = await huntBoards(
     boardState,
     { ui, ats, ...(deps.mappings ? { mappings: deps.mappings } : {}) },
     {
       now,
       ...(options.force ? { force: true } : {}),
-      keep: (job) => titleMatches(job.title, keywords),
+      keep: (job) => titleFits(job.title),
     },
   );
   await saveBoardState(boardState);

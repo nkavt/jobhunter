@@ -1,4 +1,5 @@
 import type { Derived } from '../config/index.js';
+import type { Seniority } from '../schema/enums.js';
 
 /** Words that say nothing about what the job is. */
 const NOISE = new Set([
@@ -89,7 +90,7 @@ export function titleKeywords(
 const SOFTWARE_ROLE = /\b(engineer|engineering|developer|programmer|swe)s?\b/i;
 /** Engineer titles that aren't software development. */
 const NOT_SOFTWARE =
-  /\b(sales|pre-?sales|solutions?|support|customer|success|field|mechanical|electrical|civil|chemical|hardware|manufacturing|process|quality|construction|structural|maintenance|network|recruit\w*|manager)\b/i;
+  /\b(sales|pre-?sales|solutions?|support|customer|success|field|mechanical|electrical|civil|chemical|hardware|manufacturing|process|quality|construction|structural|maintenance|network|recruit\w*|manager|business develop\w*)\b/i;
 
 /**
  * True when the title has one of the keywords, or is a software engineering role of any kind
@@ -104,5 +105,149 @@ export function titleMatches(title: string, keywords: readonly string[]): boolea
   if (keywords.length === 0) return true;
   const squashed = squash(title);
   if (keywords.some((keyword) => squashed.includes(keyword))) return true;
-  return SOFTWARE_ROLE.test(title) && !NOT_SOFTWARE.test(title);
+  return isSoftwareRole(title);
+}
+
+const isSoftwareRole = (title: string) => SOFTWARE_ROLE.test(title) && !NOT_SOFTWARE.test(title);
+
+/**
+ * Specialities a generic software title can name ("Data Engineer", "Android Developer",
+ * "Java Developer"). On a company board they're someone else's job, unless the CV names them.
+ */
+const OTHER_SPECIALITIES = [
+  'mobile',
+  'ios',
+  'android',
+  'flutter',
+  // Not "data" alone: "Software Engineer, Market Data" is a software role.
+  'data engineer',
+  'data engineering',
+  'data platform',
+  'data infrastructure',
+  'data science',
+  'big data',
+  'analytics',
+  'analyst',
+  'bi',
+  'business intelligence',
+  'database',
+  'machine learning',
+  'ml',
+  'deep learning',
+  'computer vision',
+  'research',
+  'scientist',
+  'devops',
+  'devsecops',
+  'sre',
+  'site reliability',
+  'infrastructure',
+  'systems engineer',
+  'operations',
+  'finops',
+  'networking',
+  'linux',
+  'qa',
+  'test',
+  'testing',
+  'sdet',
+  'automation engineer',
+  'security',
+  'embedded',
+  'firmware',
+  'robotics',
+  'fpga',
+  'asic',
+  'silicon',
+  'gpu',
+  'kernel',
+  'compiler',
+  'game',
+  'games',
+  'gaming',
+  'unity',
+  'unreal',
+  'desktop',
+  'salesforce',
+  'sap',
+  'servicenow',
+  'gtm',
+  'go-to-market',
+  'seo',
+  'evangelist',
+  'developer relations',
+  'advocate',
+  'implementation',
+  'quant',
+  'blockchain',
+  'web3',
+  'solidity',
+  'designer',
+  'java',
+  'go',
+  'golang',
+  'python',
+  'c#',
+  '.net',
+  'c++',
+  'rust',
+  'scala',
+  'kotlin',
+  'swift',
+  'elixir',
+  'php',
+  'ruby',
+];
+
+/** `phrase` as whole words: "go" matches "Go Developer", not "Google". */
+const wordPattern = (phrase: string) =>
+  new RegExp(`(?<![a-z0-9])${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![a-z0-9])`, 'i');
+
+const LEVELS: Record<Seniority, number> = { junior: 1, mid: 2, senior: 3, lead: 4, principal: 4 };
+/** Levels a title can name; lead, staff and principal mean different things at each company. */
+const TITLE_LEVELS: [RegExp, number][] = [
+  [/\b(intern|internship|trainee|apprentice|graduate|new grad|entry[- ]level)\b/i, 0],
+  [/\b(junior|jr)\b/i, 1],
+  [/\b(mid|middle|intermediate)\b/i, 2],
+  [/\b(senior|sr)\b/i, 3],
+  [/\b(lead|staff|principal)\b/i, 4],
+];
+
+/** False when every level the title names is two or more away from the CV's. */
+function levelFits(title: string, seniority: Seniority | undefined): boolean {
+  if (!seniority) return true;
+  // "Member of Technical Staff" is a title of its own, not a level.
+  const plain = title.replace(/technical staff/i, '');
+  const named = TITLE_LEVELS.filter(([pattern]) => pattern.test(plain));
+  return named.length === 0 || named.some(([, level]) => Math.abs(level - LEVELS[seniority]) < 2);
+}
+
+/**
+ * The stricter title check for companies' own job boards, which list every job the company has.
+ * Like `titleMatches`, but a generic software title mustn't name another speciality ("Android
+ * Developer", "Data Engineer") unless the CV does, and the level must be within one of the CV's.
+ *
+ * @example
+ * const keep = companyTitleFilter({ roles: ['Senior Backend Engineer'], tech, seniority: 'senior' });
+ * keep('Senior Software Engineer, Payments') // true: a generic software role
+ * keep('Senior Android Engineer')            // false: another speciality
+ * keep('Backend Engineer Intern')            // false: too junior
+ */
+export function companyTitleFilter(
+  derived: Pick<Derived, 'roles' | 'tech' | 'seniority'> | undefined,
+): (title: string) => boolean {
+  const keywords = titleKeywords(derived);
+  const own = [
+    ...(derived?.roles ?? []),
+    ...(derived?.tech.primary ?? []),
+    ...(derived?.tech.secondary ?? []),
+  ].join(' ');
+  const others = OTHER_SPECIALITIES.map(wordPattern).filter((pattern) => !pattern.test(own));
+  return (title) => {
+    if (!levelFits(title, derived?.seniority)) return false;
+    if (keywords.length === 0) return true;
+    const squashed = squash(title);
+    if (keywords.some((keyword) => squashed.includes(keyword))) return true;
+    return isSoftwareRole(title) && !others.some((pattern) => pattern.test(title));
+  };
 }
