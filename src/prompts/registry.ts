@@ -6,6 +6,8 @@ import extractCvFactsSystem from './extract-cv-facts/system.md';
 import extractCvFactsUser from './extract-cv-facts/user.md';
 import jobFitSystem from './job-fit/system.md';
 import jobFitUser from './job-fit/user.md';
+import jsonSchemaSnippet from './shared/json-schema.md';
+import retryFeedbackSnippet from './shared/retry-feedback.md';
 import type { PromptTemplate } from './types.js';
 
 /**
@@ -21,3 +23,14 @@ export const PROMPTS = {
   'extract-cv-facts': { system: extractCvFactsSystem, user: extractCvFactsUser },
   'job-fit': { system: jobFitSystem, user: jobFitUser },
 } as const satisfies Record<string, PromptTemplate>;
+
+/**
+ * Pieces added to other prompts by the AI adapters: `src/prompts/shared/<name>.md`.
+ * Register new ones here; a test checks that every file is registered.
+ */
+export const SNIPPETS = {
+  /** The answer's JSON Schema, for APIs that don't enforce one themselves. */
+  'json-schema': jsonSchemaSnippet,
+  /** Sent back when an answer didn't match its schema, before the one retry. */
+  'retry-feedback': retryFeedbackSnippet,
+} as const satisfies Record<string, string>;

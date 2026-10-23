@@ -26,6 +26,7 @@ interface HuntFlags {
   maxAiJobs?: number;
   since?: number;
   minScore?: number;
+  parallel?: number;
 }
 
 export function registerHunt(program: Command): void {
@@ -52,6 +53,11 @@ export function registerHunt(program: Command): void {
       'score needed for "To apply" in this run (0-100)',
       integer(0, 100),
     )
+    .option(
+      '--parallel <n>',
+      'AI calls to make at the same time (default 4, or 1 for a model on your own machine)',
+      integer(1, 16),
+    )
     .action(async (flags: HuntFlags) => {
       const ui = createTerminalUi();
       try {
@@ -64,6 +70,7 @@ export function registerHunt(program: Command): void {
             ...(flags.maxAiJobs !== undefined ? { maxAiJobs: flags.maxAiJobs } : {}),
             ...(flags.since !== undefined ? { sinceDays: flags.since } : {}),
             ...(flags.minScore !== undefined ? { minScore: flags.minScore } : {}),
+            ...(flags.parallel !== undefined ? { parallel: flags.parallel } : {}),
           },
         );
       } catch (error) {

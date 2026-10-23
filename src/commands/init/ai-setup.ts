@@ -1,8 +1,9 @@
 import type { Config, Provider } from '../../config/index.js';
 import {
   DEFAULT_MODELS,
-  PROVIDER_NAMES,
+  getProviderName,
   InvalidKeyError,
+  isLocalURL,
   LLMError,
   NetworkError,
   RateLimitError,
@@ -14,11 +15,13 @@ import { CancelledError, dim, type Choice, type Ui } from '../../ui/index.js';
 
 export const MAX_KEY_ATTEMPTS = 3;
 const SHOW_OLDER = Symbol('show older models');
+const TYPE_MODEL = Symbol('type a model ID');
 
 /** Where to get a new key, for the "rejected too many times" message. */
 const KEY_HELP: Record<Provider, string> = {
   claude: 'Create a new key in the Anthropic Console',
   gemini: 'Create a new key in Google AI Studio',
+  openai: 'Check the key with your provider',
 };
 
 export interface AiSetupDeps {
@@ -35,19 +38,26 @@ export class SetupAbortedError extends Error {
   }
 }
 
-type AiConfig = Pick<Config, 'provider' | 'apiKey' | 'model'>;
+type AiConfig = Pick<Config, 'provider' | 'apiKey' | 'model' | 'baseURL' | 'thinking'>;
+/** Where to connect, before the key is known. */
+type Endpoint = Omit<Connection, 'apiKey'>;
 
 /**
- * Provider → API key → key test + live model list → model → access test.
- * Returns the AI part of the config; nothing is saved here.
+ * Provider (+ base URL for an OpenAI-compatible API, and thinking on or off for a local one)
+ * → API key → key test + live model list → model → access test. Returns the AI part of the config; nothing is saved here.
  */
 export async function setupAi(deps: AiSetupDeps, existing?: Config): Promise<AiConfig> {
   const provider = await chooseProvider(deps.ui, existing?.provider);
-  // A saved key or model only makes sense for the same provider.
-  const same = existing?.provider === provider ? existing : undefined;
+  const endpoint: Endpoint =
+    provider === 'openai' ? await askEndpoint(deps.ui, existing) : { provider };
+  // A saved key or model only makes sense for the same provider at the same address.
+  const same =
+    existing?.provider === endpoint.provider && existing.baseURL === endpoint.baseURL
+      ? existing
+      : undefined;
 
   for (;;) {
-    const { connection, models } = await connectWithKey(deps, provider, same?.apiKey);
+    const { connection, models } = await connectWithKey(deps, endpoint, same?.apiKey);
     const model = await chooseWorkingModel(deps, connection, models, same?.model);
     if (model) return { ...connection, model };
     // `undefined` = the user asked to enter a different key.
@@ -60,26 +70,56 @@ async function chooseProvider(ui: Ui, saved?: Provider): Promise<Provider> {
     choices: [
       { name: 'Anthropic (Claude)', value: 'claude' },
       { name: 'Google (Gemini)', value: 'gemini' },
+      { name: `OpenAI-compatible API ${dim('(OpenAI, OpenRouter, Ollama, …)')}`, value: 'openai' },
     ],
     default: saved ?? 'claude',
   });
 }
 
+/** Base URL, and for a server on the user's own machine or network, whether the model may think. */
+async function askEndpoint(ui: Ui, existing?: Config): Promise<Endpoint> {
+  const baseURL = await askBaseURL(ui, existing?.baseURL);
+  if (!isLocalURL(baseURL)) return { provider: 'openai', baseURL };
+  const thinking = await ui.confirm({
+    message: `Let the model think before answering? ${dim('(better answers, but often many times slower on your own machine)')}`,
+    default: existing?.thinking ?? false,
+  });
+  return { provider: 'openai', baseURL, thinking };
+}
+
+async function askBaseURL(ui: Ui, saved?: string): Promise<string> {
+  const value = await ui.input({
+    message: `API base URL ${dim('(e.g. https://openrouter.ai/api/v1)')}`,
+    ...(saved !== undefined ? { default: saved } : {}),
+    validate: (input) => (isHttpUrl(input.trim()) ? true : 'Enter an http(s) URL'),
+  });
+  return value.trim();
+}
+
+function isHttpUrl(value: string): boolean {
+  try {
+    return ['http:', 'https:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
 async function connectWithKey(
   deps: AiSetupDeps,
-  provider: Provider,
+  endpoint: Endpoint,
   savedKey?: string,
 ): Promise<{ connection: Connection; models: ModelInfo[] }> {
+  const name = getProviderName(endpoint.provider, endpoint.baseURL);
   for (let attempt = 1; ; attempt++) {
     const connection: Connection = {
-      provider,
-      apiKey: await askKey(deps.ui, PROVIDER_NAMES[provider], savedKey),
+      ...endpoint,
+      apiKey: await askKey(deps.ui, name, savedKey),
     };
     const models = await fetchModels(deps, connection);
     if (models) return { connection, models };
     if (attempt >= MAX_KEY_ATTEMPTS) {
       throw new SetupAbortedError(
-        `The API key was rejected ${String(MAX_KEY_ATTEMPTS)} times. ${KEY_HELP[provider]} and run \`jobhunter init\` again.`,
+        `The API key was rejected ${String(MAX_KEY_ATTEMPTS)} times. ${KEY_HELP[endpoint.provider]} and run \`jobhunter init\` again.`,
       );
     }
   }
@@ -106,7 +146,10 @@ async function fetchModels(
         () => deps.connect(connection).listModels(),
         () => 'Key valid',
       );
-      if (models.length === 0) throw new SetupAbortedError('This API key has no models available.');
+      // An OpenAI-compatible server may list nothing; its model ID can still be typed in.
+      if (models.length === 0 && connection.provider !== 'openai') {
+        throw new SetupAbortedError('This API key has no models available.');
+      }
       return models;
     } catch (error) {
       if (error instanceof InvalidKeyError) {
@@ -129,9 +172,14 @@ async function chooseWorkingModel(
   models: ModelInfo[],
   preferred?: string,
 ): Promise<string | undefined> {
+  // OpenAI-compatible lists can be partial (or empty), so any model ID can be typed in.
+  const allowTyping = connection.provider === 'openai';
   const candidates = [preferred, DEFAULT_MODELS[connection.provider]];
   for (;;) {
-    const model = await pickModel(deps.ui, models, candidates);
+    const model =
+      models.length > 0
+        ? await pickModel(deps.ui, models, allowTyping, candidates)
+        : await typeModel(deps.ui, preferred);
     const name = models.find((m) => m.id === model)?.displayName ?? model;
     try {
       await deps.ui.task(
@@ -160,6 +208,7 @@ async function chooseWorkingModel(
 async function pickModel(
   ui: Ui,
   models: ModelInfo[],
+  allowTyping: boolean,
   /** Preselected if available, in order: the saved model, then the provider's default. */
   candidates: (string | undefined)[],
 ): Promise<string> {
@@ -169,13 +218,14 @@ async function pickModel(
 
   for (;;) {
     const width = Math.max(...list.map((m) => m.displayName.length));
-    const choices: Choice<string | typeof SHOW_OLDER>[] = list.map((m) => ({
+    const choices: Choice<string | typeof SHOW_OLDER | typeof TYPE_MODEL>[] = list.map((m) => ({
       name: `${m.displayName.padEnd(width)}  ${dim(modelHint(m))}`,
       value: m.id,
     }));
     if (hasOlder && list === current) {
       choices.push({ name: dim('Show older models'), value: SHOW_OLDER });
     }
+    if (allowTyping) choices.push({ name: dim('Type a model ID'), value: TYPE_MODEL });
 
     const fallback = defaultModel(list, candidates);
     const choice = await ui.select({
@@ -183,9 +233,19 @@ async function pickModel(
       choices,
       ...(fallback !== undefined ? { default: fallback } : {}),
     });
+    if (choice === TYPE_MODEL) return typeModel(ui, candidates[0]);
     if (choice !== SHOW_OLDER) return choice;
     list = models;
   }
+}
+
+async function typeModel(ui: Ui, preferred?: string): Promise<string> {
+  const value = await ui.input({
+    message: 'Model ID',
+    ...(preferred !== undefined ? { default: preferred } : {}),
+    validate: (input) => (input.trim() ? true : 'Enter the model ID your provider uses'),
+  });
+  return value.trim();
 }
 
 function modelHint(model: ModelInfo): string {

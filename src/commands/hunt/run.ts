@@ -17,7 +17,13 @@ import {
   type GoogleClient,
 } from '../../google/index.js';
 import type { Job } from '../../jobs/index.js';
-import { getAdapterName, type Connection, type LLMAdapter, type Usage } from '../../llm/index.js';
+import {
+  defaultParallelCalls,
+  getAdapterName,
+  type Connection,
+  type LLMAdapter,
+  type Usage,
+} from '../../llm/index.js';
 import type { FeedMapping } from '../../mapping/index.js';
 import {
   BUILTIN_MAPPINGS,
@@ -63,6 +69,8 @@ export interface HuntOptions {
   sinceDays?: number;
   /** Overrides the profile's cut-off for this run. */
   minScore?: number;
+  /** AI calls at the same time. Default: 1 for a local server, 4 otherwise. */
+  parallel?: number;
 }
 
 export interface HuntDeps {
@@ -306,6 +314,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
           { cv, instructions, preferences: profile.preferences },
           llm,
           {
+            concurrency: options.parallel ?? defaultParallelCalls(config),
             onBatch: (done, total) => {
               update(`${scoring}… ${String(done)}/${String(total)}`);
             },
