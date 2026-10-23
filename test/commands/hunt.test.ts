@@ -1,5 +1,6 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { HuntSetupError, runHunt, type HuntDeps } from '../../src/commands/hunt/index.js';
 import {
@@ -14,9 +15,11 @@ import { writeFileAtomic } from '../../src/config/fs.js';
 import type { JsonRequest } from '../../src/llm/index.js';
 import type { Job } from '../../src/jobs/index.js';
 import {
+  loadBoardState,
   loadSourceState,
   saveSourceState,
   SourceError,
+  type Ats,
   type SourceDefinition,
 } from '../../src/sources/index.js';
 import {
@@ -28,6 +31,7 @@ import {
   type Tracker,
 } from '../../src/tracker/index.js';
 import { readWorkbook } from '../../src/xlsx/index.js';
+import { useMockServer } from '../helpers/anthropic-mock.js';
 import { FakeLLM } from '../helpers/fake-llm.js';
 import { DERIVED_ANSWER } from '../helpers/fixtures.js';
 import { FakeUi, type DEFAULT } from '../helpers/fake-ui.js';
@@ -140,6 +144,8 @@ function deps(
         ? Promise.reject(feed)
         : Promise.resolve({ source: s, jobs: feed, errors: [], skipped: 0 });
     },
+    // Company boards have their own tests.
+    ats: [],
     trackerFor: () => tracker,
     now: () => now,
   } satisfies HuntDeps;
@@ -358,6 +364,7 @@ describe('jobhunter hunt with a local sheet', () => {
         fetched.push(s.id);
         return Promise.resolve({ source: s, jobs: feeds[s.id] ?? [], errors: [], skipped: 0 });
       },
+      ats: [],
       findLock: () => Promise.resolve(checks.shift()),
       interactive,
       now: () => now,
@@ -472,5 +479,65 @@ describe('jobhunter hunt with a local sheet', () => {
     await expect(runHunt(localDeps({}).deps)).rejects.toThrow(
       `Can't find your tracking sheet at ${join(home(), 'moved.xlsx')}`,
     );
+  });
+});
+
+describe('jobhunter hunt: company job boards', () => {
+  useTempHome();
+  const server = useMockServer();
+
+  const EXAMPLE_ATS: Ats = {
+    id: 'lever',
+    name: 'Example ATS',
+    site: 'ats.example',
+    boardFrom: (url) => (url.hostname === 'ats.example' ? url.pathname.split('/')[1] : undefined),
+    feedUrl: (board) => `https://api.ats.example/${board}`,
+    mapping: {
+      format: 'json',
+      items: '',
+      fields: { sourceId: 'id', url: 'url', title: 'title', postedAt: 'postedAt' },
+    },
+  };
+  const posting = (id: string, title: string) => ({
+    id,
+    url: `https://ats.example/acme/${id}`,
+    title,
+    postedAt: '2026-10-10T10:00:00.000Z',
+  });
+
+  it('searches for boards, reads them, and only passes on jobs for your roles', async () => {
+    await setUp();
+    // The feeds were just checked: the boards alone are reason enough to run.
+    await saveSourceState({
+      'board-a': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
+      'board-b': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
+    });
+    server.use(
+      http.get('https://api.ats.example/acme', () =>
+        HttpResponse.json([
+          posting('1', 'Senior Frontend Engineer 85'),
+          posting('2', 'Account Executive'),
+        ]),
+      ),
+    );
+    const searched: string[] = [];
+    const { deps: d, tracker } = deps({});
+    const summary = await runHunt({
+      ...d,
+      ats: [EXAMPLE_ATS],
+      searchWeb: (query) => {
+        searched.push(query);
+        return Promise.resolve([{ url: 'https://ats.example/acme/1', title: '', snippet: '' }]);
+      },
+      pause: () => Promise.resolve(),
+    });
+
+    expect(searched).toEqual(['site:ats.example "Senior Frontend Engineer" remote']);
+    expect(summary).toMatchObject({ fetched: 1, toApply: 1, ignored: 0 });
+    expect(tracker.applications.map((a) => [a.job.title, a.job.company, a.channel])).toEqual([
+      ['Senior Frontend Engineer 85', 'Acme', 'Example ATS'],
+    ]);
+    expect(tracker.ignored).toEqual([]);
+    expect(Object.keys((await loadBoardState()).boards)).toEqual(['lever:acme']);
   });
 });

@@ -196,6 +196,11 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
 1. **Fetch** the job boards: [Remotive](https://remotive.com), [Remote OK](https://remoteok.com) and [We Work Remotely](https://weworkremotely.com). A board checked in the last 6 hours is skipped, to go easy on it. If one board is down, the others still run.
 
+   **Company job boards.** Many companies list jobs only on their own careers page, hosted by [Greenhouse](https://www.greenhouse.com), [Lever](https://www.lever.co), [Ashby](https://www.ashbyhq.com) or [Workable](https://www.workable.com). Jobhunter finds those boards by searching [DuckDuckGo](https://duckduckgo.com) for your roles on each of these sites (for example `site:jobs.lever.co "Senior Frontend Engineer"`), then reads each board through its public API. A board lists every job the company has, so only jobs whose title matches your roles are kept; the rest aren't added to Ignored.
+   - DuckDuckGo blocks searches that come too fast, so a `hunt` runs at most 3 searches, 45 seconds apart. With 3 roles and 4 sites that's 12 searches, so it takes about 4 runs to search everything once. Each search is repeated weekly.
+   - Boards already found are read on every run (every 6 hours at most), whether or not there's a search to run.
+   - To search for something other than your roles, see [Common tasks](#common-tasks).
+
    More boards are coming in future versions. Also on the way: `jobhunter discover` will let the AI search the web for job boards and feeds that suit your profile. You pick the ones you want and Jobhunter learns to read them, so the next `hunt` includes them. Found a feed yourself? `jobhunter map <url>` will add that one.
 
 2. **Skip jobs already in your sheet**, in any tab, including jobs you added by hand with a link. A job is recognised by its board and ID, or by its link. The same job posted on two boards has a different link on each, so it can show up twice.
@@ -297,6 +302,14 @@ A few hidden columns (Key, Source, Found) and a hidden `_meta` tab are how Jobhu
 
 **Change the To apply cut-off for good.** Use `--min-score` for a single run. To change the default of 50, add `"minScore": 70` (any number from 0 to 100) inside `"preferences"` in your `profile.json`.
 
+**Choose what's searched for company job boards.** By default `hunt` searches for your first 3 roles, plus "remote" if remote is your only work mode. To search for something else, add your own queries to your `profile.json`. Each one is searched on every site:
+
+```json
+"boardSearch": { "queries": ["\"react developer\" remote", "typescript \"product engineer\""] }
+```
+
+Use `"queries": []` to stop searching. Boards found before are still read; delete `~/.cache/jobhunter/boards.json` to forget them.
+
 **Sign in again, or switch Google accounts.** Run `jobhunter init` → **Tracking sheet** → **In a Google Sheet** → **Sign in again**.
 
 **Use a different OAuth client file.** Same menu → **Use a different credentials file**.
@@ -341,7 +354,7 @@ Everything is stored on your machine, in `~/.config/jobhunter` (or `$XDG_CONFIG_
 | `profiles/default/cv.md`           | your CV as Markdown                                                        |
 | `profiles/default/instructions.md` | your candidate profile, the text the AI scores jobs by                     |
 
-Files holding keys or tokens are readable only by you (mode 600), and Jobhunter warns you if their permissions get looser. When each board was last checked is kept in `~/.cache/jobhunter/sources.json`. Deleting it just makes the next `hunt` check every board. The previous version of a local sheet is kept in `~/.cache/jobhunter/backups/`.
+Files holding keys or tokens are readable only by you (mode 600), and Jobhunter warns you if their permissions get looser. When each board was last checked is kept in `~/.cache/jobhunter/sources.json`. Deleting it just makes the next `hunt` check every board. The company job boards found by search, and when each search ran, are in `~/.cache/jobhunter/boards.json`. Deleting it means searching again from scratch, which takes a few runs. The previous version of a local sheet is kept in `~/.cache/jobhunter/backups/`.
 
 Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for testing).
 
@@ -350,6 +363,7 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 - **The AI provider you chose** (Anthropic, Google, or the OpenAI-compatible API at your base URL) receives your CV when it's converted (PDF and DOCX only) and when your profile is written. On each `hunt` it also receives your candidate profile, CV and preferences along with the jobs being scored. See your provider's privacy policy, for example [Anthropic's](https://www.anthropic.com/legal/privacy) or [Google's Gemini API terms](https://ai.google.dev/gemini-api/terms). On Gemini's free tier, Google may use this data to improve its products.
 - **Your tracking sheet** stays on your computer when it's a local file. With a Google Sheet, **Google** stores it in your Drive, and Jobhunter can only reach the files it created.
 - **Job boards** are fetched anonymously. Nothing about you is sent to them.
+- **DuckDuckGo** receives the searches for company job boards: your role titles (or your own queries) and the site names. Nothing else from your CV or profile is sent. See [DuckDuckGo's privacy policy](https://duckduckgo.com/privacy). These searches are sent with the headers Chrome uses, because DuckDuckGo blocks nearly every search from a non-browser User-Agent; everything else Jobhunter fetches says it's Jobhunter.
 - Jobhunter itself has no server and collects nothing.
 
 ## Troubleshooting
@@ -359,6 +373,8 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 **"Access blocked" or "has not completed the Google verification process" when signing in.** Add your Google address under **Audience → Test users** in [Google Auth Platform](https://console.cloud.google.com/auth/audience), or publish the app.
 
 **"Google Sheets API has not been used in project … or it is disabled."** Enable both [Sheets](https://console.cloud.google.com/apis/library/sheets.googleapis.com) and [Drive](https://console.cloud.google.com/apis/library/drive.googleapis.com) for the project your OAuth client belongs to. Wait a minute, then try again.
+
+**"DuckDuckGo asked to slow down."** DuckDuckGo's bot check answered instead of results. Nothing is lost: the remaining searches run in a later `hunt`, and boards already found are still read. If it happens on every run, wait an hour or two; repeated tries keep the block going.
 
 **"jobhunter.xlsx is open in LibreOffice…"** Close the file and choose **It's closed now**. If nothing has it open (the app crashed, say), choose **Continue anyway**: a lock file was left next to your sheet (`.~lock.jobhunter.xlsx#` for LibreOffice, `~$…` for Excel), and you can delete it.
 

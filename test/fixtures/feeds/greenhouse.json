@@ -1,0 +1,31 @@
+{
+  "jobs": [
+    {
+      "absolute_url": "https://stripe.com/jobs/search?gh_jid=8172510",
+      "location": {
+        "name": "Seattle, San Francisco, New York City"
+      },
+      "id": 8172510,
+      "updated_at": "2026-10-20T17:27:19-04:00",
+      "title": "Abuse Investigator",
+      "company_name": "Stripe",
+      "first_published": "2026-09-09T10:50:29-04:00",
+      "content": "&lt;h2&gt;&lt;strong&gt;Who we are &lt;/strong&gt;&lt;/h2&gt;\n&lt;h3&gt;&lt;strong&gt;About Stripe&lt;/strong&gt;&lt;/h3&gt;\n&lt;p&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Stripe is a financial infrastructure platform for businesses. Millions of companies - from the world’s largest enterpr&lt;/p&gt;"
+    },
+    {
+      "absolute_url": "https://stripe.com/jobs/search?gh_jid=8172487",
+      "location": {
+        "name": "Dublin"
+      },
+      "id": 8172487,
+      "updated_at": "2026-10-20T17:25:53-04:00",
+      "title": "Abuse Investigator",
+      "company_name": "Stripe",
+      "first_published": "2026-09-03T13:30:34-04:00",
+      "content": "&lt;h2&gt;&lt;strong&gt;Who we are &lt;/strong&gt;&lt;/h2&gt;\n&lt;h3&gt;&lt;strong&gt;About Stripe&lt;/strong&gt;&lt;/h3&gt;\n&lt;p&gt;&lt;span style=&quot;font-weight: 400;&quot;&gt;Stripe is a financial infrastructure platform for businesses. Millions of companies - from the world’s largest enterpr&lt;/p&gt;"
+    }
+  ],
+  "meta": {
+    "total": 2
+  }
+}

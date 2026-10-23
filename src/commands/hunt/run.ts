@@ -8,7 +8,7 @@ import {
   sheetBackupFile,
   type Profile,
 } from '../../config/index.js';
-import { filterJob } from '../../filter/index.js';
+import { filterJob, titleKeywords, titleMatches } from '../../filter/index.js';
 import { minScoreFor, scoreJobs } from '../../fit/index.js';
 import {
   loadCredentials,
@@ -25,14 +25,21 @@ import {
   type Usage,
 } from '../../llm/index.js';
 import type { FeedMapping } from '../../mapping/index.js';
+import type { SearchResult } from '../../search/index.js';
 import {
+  ATS,
+  boardsDue,
   BUILTIN_MAPPINGS,
   BUILTIN_SOURCES,
   fetchSource,
+  huntBoards,
+  loadBoardState,
   loadSourceState,
   nextFetchAt,
+  saveBoardState,
   saveSourceState,
   SourceError,
+  type Ats,
   type SourceDefinition,
   type SourceResult,
 } from '../../sources/index.js';
@@ -82,6 +89,11 @@ export interface HuntDeps {
     source: SourceDefinition,
     mappings: Record<string, FeedMapping>,
   ) => Promise<SourceResult>;
+  /** Systems whose company boards are searched for and read; `[]` turns that off. */
+  ats?: Ats[];
+  searchWeb?: (query: string) => Promise<SearchResult[]>;
+  /** Waits between web searches. */
+  pause?: (ms: number) => Promise<void>;
   trackerFor?: (target: TrackerTarget) => Tracker;
   /** Finds a spreadsheet app's lock on the local tracking sheet. */
   findLock?: (path: string) => Promise<OpenLock | undefined>;
@@ -190,7 +202,13 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     deferred: 0,
     pending: 0,
   };
-  if (due.length === 0) {
+  const ats = deps.ats ?? ATS;
+  const boardState = await loadBoardState();
+  const boardsWaiting = boardsDue(profile, boardState, now, {
+    ats,
+    ...(options.force ? { force: true } : {}),
+  });
+  if (due.length === 0 && !boardsWaiting) {
     ui.info('Every source was checked recently. Run `jobhunter hunt --force` to check now.');
     return summary;
   }
@@ -218,6 +236,27 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     }
   }
   await saveSourceState(state);
+
+  // Companies' own job boards, found by web search. A board lists every job the company has,
+  // so only titles matching the roles go on; the rest would flood the Ignored tab.
+  const keywords = titleKeywords(profile.derived);
+  const boardJobs = await huntBoards(
+    profile,
+    boardState,
+    {
+      ui,
+      ats,
+      ...(deps.searchWeb ? { search: deps.searchWeb } : {}),
+      ...(deps.pause ? { pause: deps.pause } : {}),
+    },
+    {
+      now,
+      ...(options.force ? { force: true } : {}),
+      keep: (job) => titleMatches(job.title, keywords),
+    },
+  );
+  await saveBoardState(boardState);
+  found.push(...boardJobs);
   summary.fetched = found.length;
 
   // Skip jobs already in the sheet (and duplicates within this run)
