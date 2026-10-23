@@ -16,7 +16,7 @@ import {
   spreadsheetUrl,
   type GoogleClient,
 } from '../../google/index.js';
-import { groupSameJobs, withAllLocations, type Job } from '../../jobs/index.js';
+import { groupSameJobs, jobKey, withAllLocations, type Job } from '../../jobs/index.js';
 import {
   defaultParallelCalls,
   getAdapterName,
@@ -118,6 +118,8 @@ function openTracker(target: TrackerTarget): Tracker {
 export interface HuntSummary {
   fetched: number;
   known: number;
+  /** The same posting more than once in this run: listed twice, or on two boards with one link. */
+  repeated: number;
   ignored: number;
   toApply: number;
   skipped: number;
@@ -206,6 +208,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   const summary: HuntSummary = {
     fetched: 0,
     known: 0,
+    repeated: 0,
     ignored: 0,
     toApply: 0,
     skipped: 0,
@@ -302,14 +305,18 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
         () => 'Checked your sheet',
       )
     : new Set<string>();
+  // A board can list one posting several times (Workable lists it once per location).
+  const seen = new Set<string>();
   const fresh: Found[] = [];
   for (const item of found) {
     if (isKnown(known, item.job)) {
       summary.known++;
-      continue;
+    } else if (isKnown(seen, item.job)) {
+      summary.repeated++;
+    } else {
+      for (const marker of knownMarkers(jobKey(item.job), item.job.url)) seen.add(marker);
+      fresh.push(item);
     }
-    for (const marker of knownMarkers(undefined, item.job.url)) known.add(marker);
-    fresh.push(item);
   }
 
   // Code filters
@@ -484,9 +491,11 @@ function report(
   }
 
   ui.info('');
-  const fresh = summary.fetched - summary.known;
+  const fresh = summary.fetched - summary.known - summary.repeated;
   ui.success(
-    `${String(summary.fetched)} jobs · ${String(summary.known)} already in your sheet · ${String(fresh)} new → ` +
+    `${String(summary.fetched)} jobs · ${String(summary.known)} already in your sheet · ` +
+      (summary.repeated > 0 ? `${String(summary.repeated)} listed twice · ` : '') +
+      `${String(fresh)} new → ` +
       `${String(summary.ignored)} ignored by your filters · ` +
       (summary.sameJob > 0
         ? `${String(summary.sameJob)} copies of a job in other locations · `

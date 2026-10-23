@@ -219,7 +219,7 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
    More boards are coming in future versions. Also on the way: `jobhunter discover` will let the AI search the web for job boards and feeds that suit your profile. You pick the ones you want and Jobhunter learns to read them, so the next `hunt` includes them. Found a feed yourself? `jobhunter map <url>` will add that one.
 
-2. **Skip jobs already in your sheet**, in any tab, including jobs you added by hand with a link. A job is recognised by its board and ID, or by its link. The same job posted on two boards has a different link on each, so it can show up twice.
+2. **Skip jobs already in your sheet**, in any tab, including jobs you added by hand with a link. A job is recognised by its board and ID, or by its link. The same job posted on two boards has a different link on each, so it can show up twice. A posting a board lists more than once (Workable lists it once per location) is counted once; the summary shows these as "listed twice".
 3. **Filter in code.** A job is ignored if:
    - its title doesn't match your roles or main technologies (any software engineer or developer title still goes through, so the AI can judge it; company job boards are stricter, see above)
    - it was posted more than 30 days ago
