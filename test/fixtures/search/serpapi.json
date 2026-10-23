@@ -1,0 +1,23 @@
+{
+  "search_metadata": { "id": "6718f2c1a5b3e4d2c1f0a9b8", "status": "Success" },
+  "search_parameters": { "engine": "google", "q": "site:jobs.lever.co \"backend engineer\"" },
+  "search_information": { "organic_results_state": "Results for exact spelling" },
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "Lendbuzz - Backend Engineer",
+      "link": "https://jobs.lever.co/lendbuzz/f234abf5-c204-4b15-986a-d8ce996883fd",
+      "displayed_link": "https://jobs.lever.co › lendbuzz",
+      "snippet": "We are looking for an experienced, passionate Backend Engineer to join our R&D team.",
+      "source": "Lever"
+    },
+    {
+      "position": 2,
+      "title": "Portcast - Senior Backend Engineer",
+      "link": "https://jobs.lever.co/portcast/1f6381eb-03dd-451a-a8cc-2c862cec3fe3",
+      "displayed_link": "https://jobs.lever.co › portcast",
+      "source": "Lever"
+    },
+    { "position": 3, "title": "A result without a link" }
+  ]
+}
