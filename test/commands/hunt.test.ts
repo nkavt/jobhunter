@@ -620,12 +620,25 @@ describe('jobhunter hunt: company job boards', () => {
     expect(ui.output.join('\n')).not.toContain('companies find');
   });
 
-  it("doesn't search, and suggests `companies find` when no boards are known", async () => {
+  it("says first that company boards are skipped when none are known, and doesn't search", async () => {
     await setUp();
+    const { deps: d, ui } = deps({ 'board-a': [job('1')] });
+    await runHunt({ ...d, ats: [EXAMPLE_ATS] });
+    expect(ui.output[0]).toBe(
+      'Company job boards (Greenhouse, Lever, Ashby, Workable) are skipped: none found yet. Run `jobhunter companies find` to look for some.',
+    );
+    expect(ui.output[1]).toMatch(/^✔ Board A: /);
+    expect(await loadBoardState()).toEqual({ searches: {}, boards: {} });
+  });
+
+  it('says nothing about company boards once searching is turned off', async () => {
+    await setUp();
+    const profile = await readProfile('default');
+    if (!profile) throw new Error('no profile');
+    await saveProfile({ ...profile, boardSearch: { queries: [] } });
     const { deps: d, ui } = deps({});
     await runHunt({ ...d, ats: [EXAMPLE_ATS] });
-    expect(ui.output.join('\n')).toContain('Run `jobhunter companies find` to find some.');
-    expect(await loadBoardState()).toEqual({ searches: {}, boards: {} });
+    expect(ui.output.join('\n')).not.toContain('companies find');
   });
 
   it('suggests `companies find` when the weekly searches are due', async () => {

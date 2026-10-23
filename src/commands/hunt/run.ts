@@ -180,6 +180,11 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     );
   }
 
+  // Companies' own job boards come from `jobhunter companies find`; say first when they're skipped.
+  const ats = deps.ats ?? ATS;
+  const boardState = await loadBoardState();
+  showCompaniesHint(ui, profile, boardState, ats, now);
+
   // Which sources are due
   const sources = deps.sources ?? BUILTIN_SOURCES;
   const state = await loadSourceState();
@@ -205,12 +210,9 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     deferred: 0,
     pending: 0,
   };
-  const ats = deps.ats ?? ATS;
-  const boardState = await loadBoardState();
   const boardsWaiting = ats.length > 0 && dueBoards(boardState, now, options.force).length > 0;
   if (due.length === 0 && !boardsWaiting) {
     ui.info('Every source was checked recently. Run `jobhunter hunt --force` to check now.');
-    showCompaniesHint(ui, profile, boardState, ats, now);
     return summary;
   }
 
@@ -252,7 +254,6 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   );
   await saveBoardState(boardState);
   found.push(...boardJobs);
-  showCompaniesHint(ui, profile, boardState, ats, now);
   summary.fetched = found.length;
 
   // Skip jobs already in the sheet (and duplicates within this run)
@@ -489,7 +490,7 @@ function showCompaniesHint(
   if (Object.keys(state.boards).length === 0) {
     ui.info(
       dim(
-        "Companies' own job boards (Greenhouse, Lever, Ashby, Workable) aren't searched yet. Run `jobhunter companies find` to find some.",
+        'Company job boards (Greenhouse, Lever, Ashby, Workable) are skipped: none found yet. Run `jobhunter companies find` to look for some.',
       ),
     );
   } else if (dueSearches(queries, state, now).length > 0) {

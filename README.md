@@ -205,7 +205,7 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
 1. **Fetch** the job boards: [Remotive](https://remotive.com), [Remote OK](https://remoteok.com) and [We Work Remotely](https://weworkremotely.com). A board checked in the last 6 hours is skipped, to go easy on it. If one board is down, the others still run.
 
-   **Company job boards.** It also reads the companies' own job boards that [`jobhunter companies find`](#jobhunter-companies-find) found, through each board's public API (every 6 hours at most). A board lists every job the company has, so only jobs whose title matches your roles are kept; the rest aren't added to Ignored. `hunt` itself never searches the web: when no boards are known yet, or the weekly searches are due, it reminds you to run `jobhunter companies find`.
+   **Company job boards.** It also reads the companies' own job boards that [`jobhunter companies find`](#jobhunter-companies-find) found, through each board's public API (every 6 hours at most). A board lists every job the company has, so only jobs whose title matches your roles are kept; the rest aren't added to Ignored. `hunt` itself never searches the web: when no boards are known yet (so company boards are skipped), or the weekly searches are due, it says so at the start of the run and suggests `jobhunter companies find`. With `"queries": []` (see [Common tasks](#common-tasks)) it says nothing.
 
    More boards are coming in future versions. Also on the way: `jobhunter discover` will let the AI search the web for job boards and feeds that suit your profile. You pick the ones you want and Jobhunter learns to read them, so the next `hunt` includes them. Found a feed yourself? `jobhunter map <url>` will add that one.
 
