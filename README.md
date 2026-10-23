@@ -69,6 +69,12 @@ Best matches:
 
 - **A spreadsheet app** to open your tracking sheet. We recommend [LibreOffice](https://www.libreoffice.org/) (free and open source). Excel works too. See [Using a local file](#using-a-local-file).
 - **Optional: a Google account**, only if you'd rather keep the sheet in Google Sheets. That also needs a free Google Cloud project to sign in with ([step-by-step guide below](#setting-up-google-access)).
+- **Optional: a web search API key**, to find companies' own job boards quickly with [`jobhunter companies find`](#jobhunter-companies-find). Either works within its free tier:
+  - **[SerpApi](https://serpapi.com/manage-api-key)** (250 free searches a month), or
+  - **[Brave Search API](https://api-dashboard.search.brave.com)** ($5 of free credit a month; asks for a credit card).
+
+  Without one, Jobhunter can use your AI's own web search (Claude, or Gemini with billing turned on) or DuckDuckGo, which is free but slow. See [Choosing a search](#choosing-a-search).
+
 - **Your CV** as PDF, DOCX, Markdown or plain text.
 
 ## Install
