@@ -1,7 +1,13 @@
 import { mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
-import { HuntSetupError, runHunt, type HuntDeps } from '../../src/commands/hunt/index.js';
+import {
+  DEFAULT_MAX_AI_JOBS,
+  HuntSetupError,
+  runHunt,
+  type HuntDeps,
+} from '../../src/commands/hunt/index.js';
 import {
   cvFile,
   instructionsFile,
@@ -13,10 +19,16 @@ import {
 import { writeFileAtomic } from '../../src/config/fs.js';
 import type { JsonRequest } from '../../src/llm/index.js';
 import type { Job } from '../../src/jobs/index.js';
+import type { FeedMapping } from '../../src/mapping/index.js';
 import {
+  ATS,
+  BUILTIN_MAPPINGS,
+  loadBoardState,
   loadSourceState,
+  saveBoardState,
   saveSourceState,
   SourceError,
+  type Ats,
   type SourceDefinition,
 } from '../../src/sources/index.js';
 import {
@@ -28,9 +40,10 @@ import {
   type Tracker,
 } from '../../src/tracker/index.js';
 import { readWorkbook } from '../../src/xlsx/index.js';
+import { useMockServer } from '../helpers/anthropic-mock.js';
 import { FakeLLM } from '../helpers/fake-llm.js';
 import { DERIVED_ANSWER } from '../helpers/fixtures.js';
-import { FakeUi, type DEFAULT } from '../helpers/fake-ui.js';
+import { DEFAULT, FakeUi } from '../helpers/fake-ui.js';
 import { saveGoogleSession } from '../helpers/google-session.js';
 import { useTempHome } from '../helpers/temp-home.js';
 
@@ -140,6 +153,8 @@ function deps(
         ? Promise.reject(feed)
         : Promise.resolve({ source: s, jobs: feed, errors: [], skipped: 0 });
     },
+    // Company boards have their own tests.
+    ats: [],
     trackerFor: () => tracker,
     now: () => now,
   } satisfies HuntDeps;
@@ -291,6 +306,78 @@ describe('jobhunter hunt', () => {
     expect(ui.output.join('\n')).toContain("1 more jobs passed your filters but weren't scored");
   });
 
+  describe('over the default limit', () => {
+    const many = () => ({
+      'board-a': Array.from({ length: DEFAULT_MAX_AI_JOBS + 5 }, (_, i) => job(`j${String(i)}`)),
+    });
+    const prompt = 'jobs passed your filters, more than the 100 a run scores by default';
+
+    it('asks in a terminal, and can score them all', async () => {
+      await setUp();
+      const { deps: d, tracker } = deps(many());
+      const ui = new FakeUi([DEFAULT_MAX_AI_JOBS + 5]);
+      const summary = await runHunt({ ...d, ui, interactive: true });
+
+      const asked = ui.prompts.find((p) => p.message.includes(prompt));
+      expect(asked?.message).toMatch(/^105 jobs passed/);
+      expect(asked?.choices?.map((c) => c.name)).toEqual([
+        'The newest 100',
+        'All 105',
+        'Another number…',
+      ]);
+      expect(asked?.choices?.[1]?.description).toContain(
+        'About 21 AI requests with claude-haiku-5-5 (Anthropic)',
+      );
+      expect(summary.deferred).toBe(0);
+      expect(tracker.applications).toHaveLength(105);
+    });
+
+    it('scores the number typed in, asking again until it fits', async () => {
+      await setUp();
+      const { deps: d, tracker } = deps(many());
+      const ui = new FakeUi(['other', '0', '200', 'ten', '102']);
+      const summary = await runHunt({ ...d, ui, interactive: true });
+
+      expect(ui.prompts.find((p) => p.type === 'input')?.message).toBe(
+        'How many jobs should the AI score? (1–105)',
+      );
+      expect(ui.rejected).toEqual([
+        'Type a whole number from 1 to 105',
+        'Type a whole number from 1 to 105',
+        'Type a whole number from 1 to 105',
+      ]);
+      expect(ui.output).toContain('About 21 AI requests.');
+      expect(tracker.applications).toHaveLength(102);
+      expect(summary.deferred).toBe(3);
+    });
+
+    it('keeps the limit when the default answer is taken', async () => {
+      await setUp();
+      const { deps: d } = deps(many());
+      const ui = new FakeUi([DEFAULT]);
+      const summary = await runHunt({ ...d, ui, interactive: true });
+      expect(summary.deferred).toBe(5);
+      expect(ui.output.join('\n')).toContain(
+        'To score more now, run `jobhunter hunt --force --max-ai-jobs <n>`: --force fetches them again, since every source was just checked.',
+      );
+    });
+
+    it("doesn't ask without a terminal, or when --max-ai-jobs was given", async () => {
+      await setUp();
+      const quiet = deps(many());
+      expect((await runHunt({ ...quiet.deps, interactive: false })).deferred).toBe(5);
+      expect(quiet.ui.prompts).toEqual([]);
+
+      const flagged = deps(many());
+      const summary = await runHunt(
+        { ...flagged.deps, interactive: true },
+        { maxAiJobs: 100, force: true },
+      );
+      expect(summary.deferred).toBe(5);
+      expect(flagged.ui.prompts).toEqual([]);
+    });
+  });
+
   it('applies a --min-score override', async () => {
     await setUp();
     const { deps: d, tracker } = deps({
@@ -358,6 +445,7 @@ describe('jobhunter hunt with a local sheet', () => {
         fetched.push(s.id);
         return Promise.resolve({ source: s, jobs: feeds[s.id] ?? [], errors: [], skipped: 0 });
       },
+      ats: [],
       findLock: () => Promise.resolve(checks.shift()),
       interactive,
       now: () => now,
@@ -471,6 +559,157 @@ describe('jobhunter hunt with a local sheet', () => {
 
     await expect(runHunt(localDeps({}).deps)).rejects.toThrow(
       `Can't find your tracking sheet at ${join(home(), 'moved.xlsx')}`,
+    );
+  });
+});
+
+describe('jobhunter hunt: company job boards', () => {
+  useTempHome();
+  const server = useMockServer();
+
+  const EXAMPLE_ATS: Ats = {
+    id: 'lever',
+    name: 'Example ATS',
+    site: 'ats.example',
+    boardFrom: (url) => (url.hostname === 'ats.example' ? url.pathname.split('/')[1] : undefined),
+    feed: 'https://api.ats.example/{board}',
+  };
+  const EXAMPLE_MAPPINGS: Record<string, FeedMapping> = {
+    [EXAMPLE_ATS.feed]: {
+      format: 'json',
+      items: '',
+      fields: { sourceId: 'id', url: 'url', title: 'title', postedAt: 'postedAt' },
+    },
+  };
+  const posting = (id: string, title: string) => ({
+    id,
+    url: `https://ats.example/acme/${id}`,
+    title,
+    postedAt: '2026-10-10T10:00:00.000Z',
+  });
+
+  it('reads the known boards and only passes on jobs for your roles', async () => {
+    await setUp();
+    // The feeds were just checked: the boards alone are reason enough to run.
+    await saveSourceState({
+      'board-a': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
+      'board-b': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
+    });
+    await saveBoardState({
+      searches: {
+        'site:ats.example "Senior Frontend Engineer" remote': {
+          searchedAt: now.toISOString(),
+          found: 1,
+        },
+      },
+      boards: { 'lever:acme': { ats: 'lever', board: 'acme', foundAt: now.toISOString() } },
+    });
+    server.use(
+      http.get('https://api.ats.example/acme', () =>
+        HttpResponse.json([
+          posting('1', 'Senior Frontend Engineer 85'),
+          posting('2', 'Account Executive'),
+        ]),
+      ),
+    );
+    const { deps: d, ui, tracker } = deps({});
+    const summary = await runHunt({ ...d, ats: [EXAMPLE_ATS], mappings: EXAMPLE_MAPPINGS });
+
+    expect(summary).toMatchObject({ fetched: 1, toApply: 1, ignored: 0 });
+    expect(tracker.applications.map((a) => [a.job.title, a.job.company, a.channel])).toEqual([
+      ['Senior Frontend Engineer 85', 'Acme', 'Example ATS'],
+    ]);
+    expect(tracker.ignored).toEqual([]);
+    expect((await loadBoardState()).boards['lever:acme']?.lastFetchedAt).toBe(now.toISOString());
+    // Searched recently, so no reminder.
+    expect(ui.output.join('\n')).not.toContain('companies find');
+  });
+
+  it("keeps apart a company's Greenhouse jobs that link to its own careers page", async () => {
+    await setUp();
+    await saveSourceState({
+      'board-a': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
+      'board-b': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
+    });
+    await saveBoardState({
+      searches: {},
+      boards: {
+        'greenhouse:stripe': { ats: 'greenhouse', board: 'stripe', foundAt: now.toISOString() },
+      },
+    });
+    // Every job links to the same page; only `gh_jid` tells them apart.
+    const greenhouseJob = (id: number) => ({
+      id,
+      title: 'Senior Frontend Engineer 85',
+      absolute_url: `https://stripe.com/jobs/search?gh_jid=${String(id)}`,
+      location: { name: 'Remote' },
+      first_published: '2026-10-10T10:00:00.000Z',
+      content: '&lt;p&gt;Build things.&lt;/p&gt;',
+    });
+    server.use(
+      http.get('https://boards-api.greenhouse.io/v1/boards/stripe/jobs', () =>
+        HttpResponse.json({ jobs: [greenhouseJob(1), greenhouseJob(2)] }),
+      ),
+    );
+    const greenhouse = ATS.filter((a) => a.id === 'greenhouse');
+    const first = deps({});
+    await runHunt({ ...first.deps, ats: greenhouse, mappings: BUILTIN_MAPPINGS });
+    expect(first.tracker.applications.map((a) => a.job.url)).toEqual([
+      'https://stripe.com/jobs/search?gh_jid=1',
+      'https://stripe.com/jobs/search?gh_jid=2',
+    ]);
+
+    // With the first one already in the sheet, the second still isn't "known".
+    const tracker = new FakeTracker(new Set(['url:https://stripe.com/jobs/search?gh_jid=1']));
+    const second = deps({}, { tracker });
+    const summary = await runHunt(
+      { ...second.deps, ats: greenhouse, mappings: BUILTIN_MAPPINGS },
+      { force: true },
+    );
+    expect(summary.known).toBe(1);
+    expect(tracker.applications.map((a) => a.job.url)).toEqual([
+      'https://stripe.com/jobs/search?gh_jid=2',
+    ]);
+  });
+
+  it("says first that company boards are skipped when none are known, and doesn't search", async () => {
+    await setUp();
+    const { deps: d, ui } = deps({ 'board-a': [job('1')] });
+    await runHunt({ ...d, ats: [EXAMPLE_ATS], mappings: EXAMPLE_MAPPINGS });
+    expect(ui.output[0]).toBe(
+      'Company job boards (Greenhouse, Lever, Ashby, Workable) are skipped: none found yet. Run `jobhunter companies find` to look for some.',
+    );
+    expect(ui.output[1]).toMatch(/^✔ Board A: /);
+    expect(await loadBoardState()).toEqual({ searches: {}, boards: {} });
+  });
+
+  it('says nothing about company boards once searching is turned off', async () => {
+    await setUp();
+    const profile = await readProfile('default');
+    if (!profile) throw new Error('no profile');
+    await saveProfile({ ...profile, boardSearch: { queries: [] } });
+    const { deps: d, ui } = deps({});
+    await runHunt({ ...d, ats: [EXAMPLE_ATS], mappings: EXAMPLE_MAPPINGS });
+    expect(ui.output.join('\n')).not.toContain('companies find');
+  });
+
+  it('suggests `companies find` when the weekly searches are due', async () => {
+    await setUp();
+    await saveBoardState({
+      searches: {},
+      boards: {
+        'lever:acme': {
+          ats: 'lever',
+          board: 'acme',
+          foundAt: now.toISOString(),
+          lastFetchedAt: now.toISOString(),
+        },
+      },
+    });
+    const { deps: d, ui } = deps({});
+    await runHunt({ ...d, ats: [EXAMPLE_ATS], mappings: EXAMPLE_MAPPINGS });
+    expect(ui.output.join('\n')).toContain(
+      'Time to look for new company job boards: run `jobhunter companies find`.',
     );
   });
 });

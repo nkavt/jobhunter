@@ -1,0 +1,56 @@
+[
+  {
+    "categories": {
+      "commitment": "Full-Time",
+      "department": "Tel-Aviv Office",
+      "location": "Tel Aviv",
+      "team": "Tel-Aviv Office",
+      "allLocations": ["Tel Aviv"]
+    },
+    "createdAt": 1790840935491,
+    "description": "<div>At Lendbuzz, we believe financial opportunity should be more personalized and fair. We develop innovative technologies that provide underserved and overlooked borrowers with better access to cred</div>",
+    "id": "f234abf5-c204-4b15-986a-d8ce996883fd",
+    "lists": [
+      {
+        "text": "Responsibilities",
+        "content": "<li>Build backend systems.</li>"
+      }
+    ],
+    "text": "Backend Engineer",
+    "country": "IL",
+    "workplaceType": "hybrid",
+    "hostedUrl": "https://jobs.lever.co/lendbuzz/f234abf5-c204-4b15-986a-d8ce996883fd",
+    "applyUrl": "https://jobs.lever.co/lendbuzz/f234abf5-c204-4b15-986a-d8ce996883fd/apply",
+    "additional": "<div>We offer equity.</div>"
+  },
+  {
+    "categories": {
+      "commitment": "Full-Time",
+      "department": "Sales",
+      "location": "Fall River, MA",
+      "team": "Dealership Account Manager",
+      "allLocations": ["Fall River, MA"]
+    },
+    "createdAt": 1791568718996,
+    "description": "<div>\n<div><span style=\"font-size: 11pt;\">Fuel your career with innovation and opportunity! We’re looking for a results-driven&nbsp;</span><strong style=\"font-size: 11pt;\">Dealership Account Manager <</div>",
+    "id": "6562706f-661b-4fb5-8f63-6f4d2344e551",
+    "lists": [
+      {
+        "text": "Responsibilities",
+        "content": "<li>Build backend systems.</li>"
+      }
+    ],
+    "text": "Bilingual Dealership Account Manager - Fall River, MA",
+    "country": "US",
+    "workplaceType": "remote",
+    "hostedUrl": "https://jobs.lever.co/lendbuzz/6562706f-661b-4fb5-8f63-6f4d2344e551",
+    "applyUrl": "https://jobs.lever.co/lendbuzz/6562706f-661b-4fb5-8f63-6f4d2344e551/apply",
+    "additional": "<div>We offer equity.</div>",
+    "salaryRange": {
+      "min": 80000,
+      "max": 175000,
+      "currency": "USD",
+      "interval": "per-year-salary"
+    }
+  }
+]

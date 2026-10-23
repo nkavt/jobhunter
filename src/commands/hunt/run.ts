@@ -8,8 +8,8 @@ import {
   sheetBackupFile,
   type Profile,
 } from '../../config/index.js';
-import { filterJob } from '../../filter/index.js';
-import { minScoreFor, scoreJobs } from '../../fit/index.js';
+import { filterJob, titleKeywords, titleMatches } from '../../filter/index.js';
+import { BATCH_SIZE, minScoreFor, scoreJobs } from '../../fit/index.js';
 import {
   loadCredentials,
   loadToken,
@@ -20,19 +20,29 @@ import type { Job } from '../../jobs/index.js';
 import {
   defaultParallelCalls,
   getAdapterName,
+  getConfiguredAdapterName,
   type Connection,
   type LLMAdapter,
   type Usage,
 } from '../../llm/index.js';
 import type { FeedMapping } from '../../mapping/index.js';
 import {
+  ATS,
+  boardQueries,
   BUILTIN_MAPPINGS,
   BUILTIN_SOURCES,
+  dueBoards,
+  dueSearches,
   fetchSource,
+  huntBoards,
+  loadBoardState,
   loadSourceState,
   nextFetchAt,
+  saveBoardState,
   saveSourceState,
   SourceError,
+  type Ats,
+  type BoardState,
   type SourceDefinition,
   type SourceResult,
 } from '../../sources/index.js';
@@ -63,7 +73,10 @@ export interface HuntOptions {
   dryRun?: boolean;
   /** `false` skips the AI: every job that passes the filters goes to "To apply". */
   ai?: boolean;
-  /** At most this many jobs are scored per run; the rest wait for a later run. */
+  /**
+   * At most this many jobs are scored per run; the rest wait for a later run. Without it, a run
+   * in a terminal asks before going over the default.
+   */
   maxAiJobs?: number;
   /** Drop jobs posted longer ago than this. */
   sinceDays?: number;
@@ -82,6 +95,8 @@ export interface HuntDeps {
     source: SourceDefinition,
     mappings: Record<string, FeedMapping>,
   ) => Promise<SourceResult>;
+  /** Systems whose company boards are read; `[]` turns that off. */
+  ats?: Ats[];
   trackerFor?: (target: TrackerTarget) => Tracker;
   /** Finds a spreadsheet app's lock on the local tracking sheet. */
   findLock?: (path: string) => Promise<OpenLock | undefined>;
@@ -165,6 +180,11 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     );
   }
 
+  // Companies' own job boards come from `jobhunter companies find`; say first when they're skipped.
+  const ats = deps.ats ?? ATS;
+  const boardState = await loadBoardState();
+  showCompaniesHint(ui, profile, boardState, ats, now);
+
   // Which sources are due
   const sources = deps.sources ?? BUILTIN_SOURCES;
   const state = await loadSourceState();
@@ -190,7 +210,8 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     deferred: 0,
     pending: 0,
   };
-  if (due.length === 0) {
+  const boardsWaiting = ats.length > 0 && dueBoards(boardState, now, options.force).length > 0;
+  if (due.length === 0 && !boardsWaiting) {
     ui.info('Every source was checked recently. Run `jobhunter hunt --force` to check now.');
     return summary;
   }
@@ -218,6 +239,21 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     }
   }
   await saveSourceState(state);
+
+  // Companies' own job boards, found by `jobhunter companies find`. A board lists every job the
+  // company has, so only titles matching the roles go on; the rest would flood the Ignored tab.
+  const keywords = titleKeywords(profile.derived);
+  const boardJobs = await huntBoards(
+    boardState,
+    { ui, ats, ...(deps.mappings ? { mappings: deps.mappings } : {}) },
+    {
+      now,
+      ...(options.force ? { force: true } : {}),
+      keep: (job) => titleMatches(job.title, keywords),
+    },
+  );
+  await saveBoardState(boardState);
+  found.push(...boardJobs);
   summary.fetched = found.length;
 
   // Skip jobs already in the sheet (and duplicates within this run)
@@ -290,7 +326,11 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   // AI score (newest first, so a cap keeps the freshest jobs)
   const minScore = options.minScore ?? minScoreFor(profile.preferences);
   passed.sort((a, b) => (b.job.postedAt ?? '').localeCompare(a.job.postedAt ?? ''));
-  const maxAiJobs = options.maxAiJobs ?? DEFAULT_MAX_AI_JOBS;
+  let maxAiJobs = options.maxAiJobs ?? DEFAULT_MAX_AI_JOBS;
+  const interactive = deps.interactive ?? (process.stdin.isTTY && process.stdout.isTTY);
+  if (useAi && passed.length > maxAiJobs && options.maxAiJobs === undefined && interactive) {
+    maxAiJobs = await askHowManyToScore(ui, passed.length, maxAiJobs, config);
+  }
   const toScore = useAi ? passed.slice(0, maxAiJobs) : passed;
   summary.deferred = passed.length - toScore.length;
 
@@ -339,7 +379,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   summary.skipped = tracked.length - summary.toApply;
   await write({ applications: tracked });
 
-  report(ui, summary, tracked, options);
+  report(ui, summary, tracked, maxAiJobs, options);
   if (summary.pending > 0) {
     ui.warn(
       `Your sheet was open, so ${String(summary.pending)} jobs were kept in ${pendingPath}. The next \`jobhunter hunt\` adds them.`,
@@ -352,7 +392,57 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   return summary;
 }
 
-function report(ui: Ui, summary: HuntSummary, tracked: TrackedJob[], options: HuntOptions): void {
+/** More jobs passed than a run scores by default: score them all, only the newest, or a number? */
+async function askHowManyToScore(
+  ui: Ui,
+  passed: number,
+  cap: number,
+  config: Parameters<typeof getConfiguredAdapterName>[0],
+): Promise<number> {
+  const calls = (jobs: number) => Math.ceil(jobs / BATCH_SIZE);
+  const choice = await ui.select<number | 'other'>({
+    message: `${String(passed)} jobs passed your filters, more than the ${String(cap)} a run scores by default. How many should the AI score?`,
+    choices: [
+      {
+        name: `The newest ${String(cap)}`,
+        value: cap,
+        description: `About ${String(calls(cap))} AI requests. The rest aren't added to your sheet; a later run picks them up while they're still listed.`,
+      },
+      {
+        name: `All ${String(passed)}`,
+        value: passed,
+        description: `About ${String(calls(passed))} AI requests with ${getConfiguredAdapterName(config)}, billed to your AI account. A large run can take a while, or run into your provider's rate limits.`,
+      },
+      {
+        name: 'Another number…',
+        value: 'other',
+        description: `The newest jobs first, from 1 to ${String(passed)}.`,
+      },
+    ],
+    default: cap,
+  });
+  if (choice !== 'other') return choice;
+  const answer = await ui.input({
+    message: `How many jobs should the AI score? (1–${String(passed)})`,
+    validate: (value) => {
+      const number = Number(value.trim());
+      return Number.isInteger(number) && number >= 1 && number <= passed
+        ? true
+        : `Type a whole number from 1 to ${String(passed)}`;
+    },
+  });
+  const count = Number(answer.trim());
+  ui.info(dim(`About ${String(calls(count))} AI requests.`));
+  return count;
+}
+
+function report(
+  ui: Ui,
+  summary: HuntSummary,
+  tracked: TrackedJob[],
+  maxAiJobs: number,
+  options: HuntOptions,
+): void {
   const best = tracked.filter((item) => item.status === 'To apply').slice(0, 10);
   if (best.length > 0) {
     ui.info('');
@@ -381,8 +471,29 @@ function report(ui: Ui, summary: HuntSummary, tracked: TrackedJob[], options: Hu
   }
   if (summary.deferred > 0) {
     ui.info(
-      `${String(summary.deferred)} more jobs passed your filters but weren't scored (limit ${String(options.maxAiJobs ?? DEFAULT_MAX_AI_JOBS)} per run); a later run picks them up while they're still listed.`,
+      `${String(summary.deferred)} more jobs passed your filters but weren't scored (limit ${String(maxAiJobs)} per run); a later run picks them up while they're still listed. To score more now, run \`jobhunter hunt --force --max-ai-jobs <n>\`: --force fetches them again, since every source was just checked.`,
     );
   }
   if (options.dryRun) ui.info(dim('Dry run: nothing was written to your sheet.'));
+}
+
+/** Searching for company boards is its own command; say when it's worth running. */
+function showCompaniesHint(
+  ui: Ui,
+  profile: Profile,
+  state: BoardState,
+  ats: readonly Ats[],
+  now: Date,
+): void {
+  const queries = ats.length > 0 ? boardQueries(profile, ats) : [];
+  if (queries.length === 0) return;
+  if (Object.keys(state.boards).length === 0) {
+    ui.info(
+      dim(
+        'Company job boards (Greenhouse, Lever, Ashby, Workable) are skipped: none found yet. Run `jobhunter companies find` to look for some.',
+      ),
+    );
+  } else if (dueSearches(queries, state, now).length > 0) {
+    ui.info(dim('Time to look for new company job boards: run `jobhunter companies find`.'));
+  }
 }

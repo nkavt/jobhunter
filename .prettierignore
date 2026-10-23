@@ -1,3 +1,5 @@
 dist
 coverage
 package-lock.json
+# Real search pages, kept as served
+test/fixtures/search

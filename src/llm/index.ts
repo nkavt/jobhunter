@@ -16,5 +16,7 @@ export {
   getConfiguredAdapterName,
   getProviderName,
   PROVIDER_NAMES,
+  WEB_SEARCH_NAMES,
+  WEB_SEARCH_NOTES,
 } from './describe.js';
 export { isLocalURL } from './local.js';

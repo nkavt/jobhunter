@@ -19,6 +19,22 @@ export function getProviderName(provider: Provider, baseURL?: string): string {
   return PROVIDER_NAMES[provider];
 }
 
+/** The provider's built-in web search, for messages; `undefined` = it has none. */
+export const WEB_SEARCH_NAMES: Record<Provider, string | undefined> = {
+  claude: "Claude's web search",
+  gemini: 'Gemini with Google Search',
+  // Chat Completions has no standard web search tool.
+  openai: undefined,
+};
+
+/** What to know before choosing the provider's web search; shown in `init` and with its errors. */
+export const WEB_SEARCH_NOTES: Record<Provider, string | undefined> = {
+  claude: undefined,
+  gemini:
+    "BTW: on Gemini's free tier, Gemini 3 models can't use Google Search at all. Turn on billing for your Google AI Studio project (5,000 free searches a month), or use another search.",
+  openai: undefined,
+};
+
 /** Which model is doing the work, for messages: `claude-sonnet-5-5 (Anthropic)`. */
 export function getAdapterName(adapter: Pick<LLMAdapter, 'model' | 'providerName'>): string {
   return `${adapter.model} (${adapter.providerName})`;

@@ -8,6 +8,19 @@ import { ProfileNameSchema } from './profile.js';
 export const ProviderSchema = z.enum(['claude', 'gemini', 'openai']);
 export type Provider = z.infer<typeof ProviderSchema>;
 
+/**
+ * Which web search Jobhunter uses (today by `companies find`, for companies' job boards). `ai`
+ * uses the AI provider's own web search, with the key above.
+ */
+export const SearchConfigSchema = z.discriminatedUnion('provider', [
+  z.object({ provider: z.literal('ai') }),
+  z.object({ provider: z.literal('serpapi'), apiKey: z.string().min(1) }),
+  z.object({ provider: z.literal('brave'), apiKey: z.string().min(1) }),
+  z.object({ provider: z.literal('duckduckgo') }),
+]);
+export type SearchConfig = z.infer<typeof SearchConfigSchema>;
+export type SearchProvider = SearchConfig['provider'];
+
 /** `config.json`: how Jobhunter runs and authenticates. Never holds user/profile data. */
 export const ConfigSchema = z
   .object({
@@ -24,6 +37,8 @@ export const ConfigSchema = z
      */
     thinking: z.boolean().optional(),
     activeProfile: ProfileNameSchema.default('default'),
+    /** Missing = DuckDuckGo, until the user picks one in `init`. */
+    search: SearchConfigSchema.optional(),
   })
   .refine((config) => config.provider !== 'openai' || config.baseURL !== undefined, {
     message: 'The openai provider needs a baseURL',

@@ -44,6 +44,7 @@ Best matches:
 - [Commands](#commands)
   - [`jobhunter init`](#jobhunter-init)
   - [`jobhunter hunt`](#jobhunter-hunt)
+  - [`jobhunter companies find`](#jobhunter-companies-find)
   - [`jobhunter sheet`](#jobhunter-sheet)
   - [Coming soon](#coming-soon)
 - [Your tracking sheet](#your-tracking-sheet)
@@ -84,13 +85,14 @@ Then run `jobhunter --help` to check it's installed.
    ```sh
    jobhunter init
    ```
-   It walks you through the AI key, your CV, your preferences and creating your tracking sheet. For the sheet, press Enter to keep it in `~/Documents/jobhunter.xlsx`, or type another file or folder. When it says "You're all set. 🎉 Happy hunting! 🏹", you're done.
+   It walks you through the AI key, your CV, your preferences, creating your tracking sheet and choosing a web search. For the sheet, press Enter to keep it in `~/Documents/jobhunter.xlsx`, or type another file or folder. When it says "You're all set. 🎉 Happy hunting! 🏹", you're done.
 2. **Go hunting:**
    ```sh
    jobhunter hunt
    ```
    Close the sheet first if you have it open. New jobs are added to it, and the run ends with where it is. Open it and go to the **To apply** tab to see the best matches. `jobhunter sheet --open` opens it any time.
 3. **Run `jobhunter hunt` again whenever you like**, for example once a day. Jobs already in your sheet are skipped, so each run only adds new ones.
+4. **Find companies hiring for your roles** with `jobhunter companies find`, about once a week. It looks for companies' own job boards, and every `hunt` after it reads them too.
 
 Prefer Google Sheets? First create your Google OAuth client by following [Setting up Google access](#setting-up-google-access) (about 10 minutes, once), then choose **In a Google Sheet** when `init` asks where to track jobs.
 
@@ -176,6 +178,12 @@ Sets everything up. Run it once to start. Run it again any time to change one pa
 5. **Tracking sheet.** Choose where Jobhunter tracks jobs:
    - **In a spreadsheet file on this computer** (the default). Give a file or a folder, or press Enter for `~/Documents/jobhunter.xlsx`. Missing folders are created after you confirm. If the file is already a Jobhunter sheet, it's reused with all its jobs. Any other existing file is never overwritten.
    - **In a Google Sheet.** Give the path to your OAuth client file ([how to get one](#setting-up-google-access)) and sign in with Google in your browser. Jobhunter then creates the sheet in a `Jobhunter` folder in your Drive and prints its link.
+6. **Web search.** Choose which web search Jobhunter uses. Today that's how [`jobhunter companies find`](#jobhunter-companies-find) finds companies' own job boards:
+   - **Your AI's own web search** (Claude's web search, or Gemini with Google Search), offered first when your AI provider has one. No extra key, but the slowest and most expensive per search, billed to your AI account. OpenAI-compatible APIs can't search, so this isn't offered for them. On Gemini's free tier, Gemini 3 models can't use Google Search either; turn on billing (5,000 free searches a month) or pick another search.
+   - **[SerpApi](https://serpapi.com/pricing)** (Google results, 250 free searches a month) or the **[Brave Search API](https://brave.com/search/api/)** ($5 of free credit a month). Fast and the best results; paste the service's API key.
+   - **DuckDuckGo.** Free and needs no key, but slow: DuckDuckGo has no API, so Jobhunter reads its result pages like a browser and waits 45 seconds between searches. Searching everything takes about 10 minutes, and DuckDuckGo still blocks searches now and then.
+
+   See [Choosing a search](#choosing-a-search) to compare them. Except for DuckDuckGo, Jobhunter checks your choice with one real search for your first role, and keeps the job boards it finds.
 
 **When you're already set up**, `init` asks what you'd like to change:
 
@@ -186,6 +194,7 @@ Sets everything up. Run it once to start. Run it again any time to change one pa
 | CV                                          | import an updated CV; your preferences and candidate profile are updated after it                                |
 | Preferences and candidate profile           | change what you're looking for, or rewrite the profile the AI scores you by                                      |
 | Tracking sheet (local file or Google Sheet) | use another file, start a fresh sheet, switch between a local file and Google Sheets, or sign in to Google again |
+| Web search                                  | change which web search is used, or replace its API key                                                          |
 | Nothing, exit                               | leave everything as it is                                                                                        |
 
 Any step can be skipped and finished later by running `jobhunter init` again. Pressing Ctrl+C cancels without saving the step you're in.
@@ -195,6 +204,8 @@ Any step can be skipped and finished later by running `jobhunter init` again. Pr
 Finds new jobs and adds them to your sheet. Each run goes like this:
 
 1. **Fetch** the job boards: [Remotive](https://remotive.com), [Remote OK](https://remoteok.com) and [We Work Remotely](https://weworkremotely.com). A board checked in the last 6 hours is skipped, to go easy on it. If one board is down, the others still run.
+
+   **Company job boards.** It also reads the companies' own job boards that [`jobhunter companies find`](#jobhunter-companies-find) found, through each board's public API (every 6 hours at most). A board lists every job the company has, so only jobs whose title matches your roles are kept; the rest aren't added to Ignored. `hunt` itself never searches the web: when no boards are known yet (so company boards are skipped), or the weekly searches are due, it says so at the start of the run and suggests `jobhunter companies find`. With `"queries": []` (see [Common tasks](#common-tasks)) it says nothing.
 
    More boards are coming in future versions. Also on the way: `jobhunter discover` will let the AI search the web for job boards and feeds that suit your profile. You pick the ones you want and Jobhunter learns to read them, so the next `hunt` includes them. Found a feed yourself? `jobhunter map <url>` will add that one.
 
@@ -208,7 +219,7 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
    Ignored jobs go to the **Ignored** tab with the reason. When a job doesn't say something (no salary, say), it isn't ignored for that.
 
-4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement. Jobs are sent in batches of 5, with up to four batches at a time.
+4. **Score with the AI.** The remaining jobs, newest first, are sent to the AI together with your candidate profile, CV and preferences. Each gets a score from 0 to 100 and a short note: why it fits, the main gaps, and anything to watch for, like timezone or location limits. Location is judged here rather than in code, because "EU only" or "EMEA" needs judgement. Jobs are sent in batches of 5, with up to four batches at a time. A run scores at most 100 jobs. When more pass your filters and you're running `hunt` in a terminal, it asks whether to score them all (with the number of AI requests that takes), only the newest 100, or another number you type in; from a script or cron it keeps the limit. The jobs over the limit aren't added to your sheet, and a later run picks them up while they're still listed. To score them right away, run `jobhunter hunt --force --max-ai-jobs <n>` (`--force`, because every source was just checked).
 5. **Write to your sheet.** Jobs scoring at or above your cut-off (50 by default) go to **To apply**; the rest go to **Skipped**, with the note explaining why.
 6. **Print a summary:** how many jobs were found, known, ignored and scored, your 10 best matches with their notes, and how many AI tokens the run used. The last line says where your sheet is: its file path, or its link.
 
@@ -216,15 +227,15 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
 **Options**
 
-| Option                | What it does                                                                                       |
-| --------------------- | -------------------------------------------------------------------------------------------------- |
-| `-f, --force`         | Check every board, even ones checked in the last 6 hours.                                          |
-| `--dry-run`           | Show the results without writing anything to your sheet. Doesn't need Google to be connected.      |
-| `--no-ai`             | Skip the AI: every job that passes the filters goes to To apply, without a score or note. Free.    |
-| `--max-ai-jobs <n>`   | Score at most this many jobs per run (default 100). The rest wait for the next run.                |
-| `--since <days>`      | Ignore jobs posted more than this many days ago (default 30).                                      |
-| `--min-score <score>` | The score needed for To apply, for this run only (0–100).                                          |
-| `--parallel <n>`      | AI calls made at the same time (1–16). Default 4, or 1 for a model on your own machine or network. |
+| Option                | What it does                                                                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| `-f, --force`         | Check every board, even ones checked in the last 6 hours.                                           |
+| `--dry-run`           | Show the results without writing anything to your sheet. Doesn't need Google to be connected.       |
+| `--no-ai`             | Skip the AI: every job that passes the filters goes to To apply, without a score or note. Free.     |
+| `--max-ai-jobs <n>`   | Score at most this many jobs per run (default 100), without asking. The rest wait for the next run. |
+| `--since <days>`      | Ignore jobs posted more than this many days ago (default 30).                                       |
+| `--min-score <score>` | The score needed for To apply, for this run only (0–100).                                           |
+| `--parallel <n>`      | AI calls made at the same time (1–16). Default 4, or 1 for a model on your own machine or network.  |
 
 Examples:
 
@@ -235,6 +246,35 @@ jobhunter hunt --since 7          # only jobs from the last week
 jobhunter hunt --force            # check the boards again right now
 jobhunter hunt --min-score 70     # stricter: only strong matches go to To apply
 ```
+
+### `jobhunter companies find`
+
+Many companies list jobs only on their own careers page, hosted by [Greenhouse](https://www.greenhouse.com), [Lever](https://www.lever.co), [Ashby](https://www.ashbyhq.com) or [Workable](https://www.workable.com). This command finds those boards by searching the web for your roles on each of these sites (for example `site:lever.co "Senior Frontend Engineer"`), and remembers them so every `hunt` reads them.
+
+- It searches for your first 3 roles, plus "remote" if remote is your only work mode. With 4 sites that's 12 searches. To search for something else, see [Common tasks](#common-tasks).
+- It searches with what you chose in `jobhunter init` → **Web search**: your AI's web search, SerpApi, Brave Search or DuckDuckGo. Until you choose, it uses DuckDuckGo, which takes about 10 minutes for 12 searches.
+- Each search is repeated after a week, to find companies that started hiring since. Run it again before then and there's nothing to do; add `-f` or `--force` to search again anyway.
+- Progress is saved after every search. Press Ctrl+C any time, or let a rate limit stop it, and the next run picks up where it stopped. After 2 failed searches in a row (no connection, say) it stops too, and leaves the rest for next time.
+
+```sh
+jobhunter companies find           # the usual, about once a week
+jobhunter companies find --force   # search again now
+```
+
+#### Choosing a search
+
+A full run is 12 searches a week (3 roles × 4 sites), about 50 a month, so every option below fits its free tier.
+
+| Search                                                                       | Key                  | Free                                                          | Speed     | Good to know                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[SerpApi](https://serpapi.com/pricing)** (Google)                          | yes                  | 250 searches a month, 50 an hour                              | fast      | Google's own results, 10 per search. Paid plans start at $25 a month for 1,000.                                                                                                                                                                                                                                                                                                                                                    |
+| **[Brave Search API](https://brave.com/search/api/)**                        | yes                  | $5 of credit every month, about 1,000 searches ($5 per 1,000) | fast      | Up to 20 results per search. Brave asks for a credit card when you sign up, to prevent abuse.                                                                                                                                                                                                                                                                                                                                      |
+| **Your AI's web search** (Claude's web search, or Gemini with Google Search) | no, uses your AI key | none: billed to your AI account                               | slow      | The easiest to set up, but costs the most per search: the search itself, the tokens to read its results, and a second request to list the pages. The model writes the actual searches, so results are fewer and less predictable. An organisation admin can turn Claude's web search off. **Gemini's free tier has no Google Search for Gemini 3 models**: it needs billing turned on, which includes 5,000 free searches a month. |
+| **DuckDuckGo**                                                               | no                   | free                                                          | very slow | DuckDuckGo has no API, so Jobhunter reads its result pages like a browser and waits 45 seconds between searches: about 10 minutes for 12 searches. It still blocks searches now and then.                                                                                                                                                                                                                                          |
+
+AI search is only offered when your AI provider has one. **OpenAI-compatible APIs (OpenAI, OpenRouter, Ollama…) can't search**: Chat Completions has no standard web search tool. With one of those, choose SerpApi, Brave or DuckDuckGo.
+
+Prices and free tiers are the services' own and can change; check the linked pages.
 
 ### `jobhunter sheet`
 
@@ -297,6 +337,16 @@ A few hidden columns (Key, Source, Found) and a hidden `_meta` tab are how Jobhu
 
 **Change the To apply cut-off for good.** Use `--min-score` for a single run. To change the default of 50, add `"minScore": 70` (any number from 0 to 100) inside `"preferences"` in your `profile.json`.
 
+**Choose what's searched for company job boards.** By default `jobhunter companies find` searches for your first 3 roles, plus "remote" if remote is your only work mode. To search for something else, add your own queries to your `profile.json`. Each one is searched on every site:
+
+```json
+"boardSearch": { "queries": ["\"react developer\" remote", "typescript \"product engineer\""] }
+```
+
+Use `"queries": []` to stop searching. Boards found before are still read; delete `~/.cache/jobhunter/boards.json` to forget them.
+
+**Change the web search.** Run `jobhunter init` → **Web search**. Press Enter at the key prompt to keep your saved key.
+
 **Sign in again, or switch Google accounts.** Run `jobhunter init` → **Tracking sheet** → **In a Google Sheet** → **Sign in again**.
 
 **Use a different OAuth client file.** Same menu → **Use a different credentials file**.
@@ -331,17 +381,17 @@ If you used Google, remove its access as above. Your tracking sheet stays where 
 
 Everything is stored on your machine, in `~/.config/jobhunter` (or `$XDG_CONFIG_HOME/jobhunter`):
 
-| File                               | What it holds                                                              |
-| ---------------------------------- | -------------------------------------------------------------------------- |
-| `config.json`                      | AI provider, model, API key (and base URL for an OpenAI-compatible API)    |
-| `google-credentials.json`          | your Google OAuth client (a copy of the file you downloaded)               |
-| `google-token.json`                | your Google sign-in                                                        |
-| `profiles/default/profile.json`    | your preferences, facts from your CV, and where your tracking sheet is     |
-| `profiles/default/pending.json`    | jobs found while your sheet file was open, until the next `hunt` adds them |
-| `profiles/default/cv.md`           | your CV as Markdown                                                        |
-| `profiles/default/instructions.md` | your candidate profile, the text the AI scores jobs by                     |
+| File                               | What it holds                                                                                              |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `config.json`                      | AI provider, model, API key (and base URL for an OpenAI-compatible API), and the web search (with its key) |
+| `google-credentials.json`          | your Google OAuth client (a copy of the file you downloaded)                                               |
+| `google-token.json`                | your Google sign-in                                                                                        |
+| `profiles/default/profile.json`    | your preferences, facts from your CV, and where your tracking sheet is                                     |
+| `profiles/default/pending.json`    | jobs found while your sheet file was open, until the next `hunt` adds them                                 |
+| `profiles/default/cv.md`           | your CV as Markdown                                                                                        |
+| `profiles/default/instructions.md` | your candidate profile, the text the AI scores jobs by                                                     |
 
-Files holding keys or tokens are readable only by you (mode 600), and Jobhunter warns you if their permissions get looser. When each board was last checked is kept in `~/.cache/jobhunter/sources.json`. Deleting it just makes the next `hunt` check every board. The previous version of a local sheet is kept in `~/.cache/jobhunter/backups/`.
+Files holding keys or tokens are readable only by you (mode 600), and Jobhunter warns you if their permissions get looser. When each board was last checked is kept in `~/.cache/jobhunter/sources.json`. Deleting it just makes the next `hunt` check every board. The company job boards found by search, and when each search ran, are in `~/.cache/jobhunter/boards.json`. Deleting it means running `jobhunter companies find` again from scratch. The previous version of a local sheet is kept in `~/.cache/jobhunter/backups/`.
 
 Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for testing).
 
@@ -350,6 +400,7 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 - **The AI provider you chose** (Anthropic, Google, or the OpenAI-compatible API at your base URL) receives your CV when it's converted (PDF and DOCX only) and when your profile is written. On each `hunt` it also receives your candidate profile, CV and preferences along with the jobs being scored. See your provider's privacy policy, for example [Anthropic's](https://www.anthropic.com/legal/privacy) or [Google's Gemini API terms](https://ai.google.dev/gemini-api/terms). On Gemini's free tier, Google may use this data to improve its products.
 - **Your tracking sheet** stays on your computer when it's a local file. With a Google Sheet, **Google** stores it in your Drive, and Jobhunter can only reach the files it created.
 - **Job boards** are fetched anonymously. Nothing about you is sent to them.
+- **The web search you chose** (your AI provider, [SerpApi](https://serpapi.com/legal), [Brave](https://search.brave.com/help/privacy-policy) or [DuckDuckGo](https://duckduckgo.com/privacy)) receives the searches for company job boards: your role titles (or your own queries) and the site names. Nothing else from your CV or profile is sent. DuckDuckGo searches are sent with the headers Chrome uses, because DuckDuckGo blocks nearly every search from a non-browser User-Agent; everything else Jobhunter fetches says it's Jobhunter.
 - Jobhunter itself has no server and collects nothing.
 
 ## Troubleshooting
@@ -359,6 +410,12 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 **"Access blocked" or "has not completed the Google verification process" when signing in.** Add your Google address under **Audience → Test users** in [Google Auth Platform](https://console.cloud.google.com/auth/audience), or publish the app.
 
 **"Google Sheets API has not been used in project … or it is disabled."** Enable both [Sheets](https://console.cloud.google.com/apis/library/sheets.googleapis.com) and [Drive](https://console.cloud.google.com/apis/library/drive.googleapis.com) for the project your OAuth client belongs to. Wait a minute, then try again.
+
+**"DuckDuckGo asked to slow down."** DuckDuckGo's bot check answered instead of results. Nothing is lost: the searches that ran are kept, the rest run the next time you run `jobhunter companies find`, and `hunt` still reads the boards already found. If it happens every time, wait an hour or two, since repeated tries keep the block going, or choose a faster search in `jobhunter init` → **Web search**.
+
+**"… didn't accept the API key" or "… run out of searches" from `companies find`.** Check the key or plan with the search service, then run `jobhunter init` → **Web search** to paste a new key or choose another search.
+
+**"Gemini answered "You exceeded your current quota…" to a Google Search request."** On Gemini's free tier, Gemini 3 models can't use Google Search at all, so its quota is zero and waiting doesn't help. Your key still works for scoring. Either turn on billing for your project in [Google AI Studio](https://aistudio.google.com/) (that includes 5,000 free searches a month; see [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)), or run `jobhunter init` → **Web search** and choose SerpApi, Brave or DuckDuckGo.
 
 **"jobhunter.xlsx is open in LibreOffice…"** Close the file and choose **It's closed now**. If nothing has it open (the app crashed, say), choose **Continue anyway**: a lock file was left next to your sheet (`.~lock.jobhunter.xlsx#` for LibreOffice, `~$…` for Excel), and you can delete it.
 

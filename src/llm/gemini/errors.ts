@@ -1,4 +1,5 @@
 import { ApiError } from '@google/genai';
+import { WEB_SEARCH_NOTES } from '../describe.js';
 import {
   InsufficientCreditError,
   InvalidKeyError,
@@ -57,10 +58,20 @@ export function mapGeminiError(error: unknown, context: ErrorContext = {}): Erro
     );
   }
   if (error.status === 429) {
+    const retryAfterMs = retryDelayMs(body);
+    // On the free tier, Google Search's quota for Gemini 3 models is zero. Google says "quota
+    // exceeded" with no retry delay, and waiting doesn't help.
+    if (context.webSearch === true && retryAfterMs === undefined) {
+      return new WebSearchUnavailableError(
+        `Gemini answered "${message.trim().replace(/\.$/, '')}" to a Google Search request. ${WEB_SEARCH_NOTES.gemini ?? ''}`,
+        'gemini',
+        options,
+      );
+    }
     return new RateLimitError(
       'Gemini rate limit or quota reached. Try again in a moment, or check your quota in Google AI Studio.',
       'gemini',
-      retryDelayMs(body),
+      retryAfterMs,
       options,
     );
   }

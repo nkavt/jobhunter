@@ -92,6 +92,12 @@ export const LocalSheetSchema = z.object({
   path: z.string().min(1),
 });
 
+/** Web searches for companies' own job boards (Greenhouse, Lever, Ashby, Workable). */
+export const BoardSearchSchema = z.object({
+  /** Searched on each board site instead of the CV's roles, e.g. `"react developer" remote`; `[]` = don't search. */
+  queries: z.array(z.string().trim().min(1)),
+});
+
 /**
  * `profiles/<name>/profile.json`: who the user is and what they want. Filled in step by
  * step during `init`, so everything except identity is optional.
@@ -106,6 +112,8 @@ export const ProfileSchema = z.object({
   sheet: SheetLinkSchema.nullable().optional(),
   /** Set when the user tracks jobs in a local file; it wins over `sheet`. */
   localSheet: LocalSheetSchema.optional(),
+  /** Missing = search by the CV's roles. Edited by hand in `profile.json`. */
+  boardSearch: BoardSearchSchema.optional(),
 });
 
 export type CvInfo = z.infer<typeof CvInfoSchema>;

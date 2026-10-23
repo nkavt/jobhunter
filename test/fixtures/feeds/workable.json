@@ -1,0 +1,50 @@
+{
+  "name": "Hugging Face",
+  "description": "",
+  "jobs": [
+    {
+      "title": "Open-Source Machine Learning Engineer - EMEA Remote",
+      "shortcode": "81B46579FE",
+      "employment_type": "Full-time",
+      "telecommuting": true,
+      "department": "Open Source",
+      "url": "https://apply.workable.com/j/81B46579FE",
+      "published_on": "2026-05-29",
+      "country": "France",
+      "city": "Paris",
+      "state": "Île-de-France",
+      "locations": [
+        {
+          "country": "France",
+          "countryCode": "FR",
+          "city": "Paris",
+          "region": "Île-de-France",
+          "hidden": false
+        }
+      ],
+      "description": "<p></p><p>At Hugging Face, we're on a journey to democratize good AI. We are building the fastest growing platform for AI builders with over 11 million users who collectively shared over 4 million mod</p>"
+    },
+    {
+      "title": "Open-Source Machine Learning Engineer - US Remote",
+      "shortcode": "19A136F8E2",
+      "employment_type": "Full-time",
+      "telecommuting": true,
+      "department": "Open Source",
+      "url": "https://apply.workable.com/j/19A136F8E2",
+      "published_on": "2026-05-29",
+      "country": "United States",
+      "city": "New York",
+      "state": "New York",
+      "locations": [
+        {
+          "country": "United States",
+          "countryCode": "US",
+          "city": "New York",
+          "region": "New York",
+          "hidden": false
+        }
+      ],
+      "description": "<p></p><p>At Hugging Face, we're on a journey to democratize good AI. We are building the fastest growing platform for AI builders with over 11 million users who collectively shared over 4 million mod</p>"
+    }
+  ]
+}

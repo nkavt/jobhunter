@@ -5,17 +5,22 @@ import {
   readConfig,
   saveConfig,
   type Config,
+  type Provider,
+  type SearchConfig,
 } from '../../config/index.js';
 import { openInBrowser } from '../../google/index.js';
 import {
   connectAdapter,
   getConfiguredAdapterName,
+  PROVIDER_NAMES,
+  WEB_SEARCH_NAMES,
   type Connection,
   type LLMAdapter,
 } from '../../llm/index.js';
 import { CancelledError, createTerminalUi, dim, type Ui } from '../../ui/index.js';
 import { SetupAbortedError, setupAi } from './ai-setup.js';
 import { importCv } from './cv-step.js';
+import { setupSearch, type SearchStepDeps } from './search-step.js';
 import { finishInit } from './summary.js';
 import { updateProfile } from './profile-step.js';
 import { setupTracking } from './tracking-step.js';
@@ -26,10 +31,12 @@ export interface InitDeps {
   openBrowser: (url: string) => void;
   /** Build an adapter; the model only matters for generating (CV conversion etc.). */
   connect: (connection: Connection, model?: string) => LLMAdapter;
+  /** The web search's test search; tests replace it with a fake engine. */
+  searchEngineFor?: SearchStepDeps['engineFor'];
 }
 
-type Step = 'ai' | 'cv' | 'profile' | 'sheet';
-const ALL_STEPS: Step[] = ['ai', 'cv', 'profile', 'sheet'];
+type Step = 'ai' | 'cv' | 'profile' | 'sheet' | 'search';
+const ALL_STEPS: Step[] = ['ai', 'cv', 'profile', 'sheet', 'search'];
 
 export async function runInit(deps: InitDeps): Promise<void> {
   const { ui } = deps;
@@ -43,10 +50,12 @@ export async function runInit(deps: InitDeps): Promise<void> {
   let config = existing;
   if (steps.has('ai')) {
     const ai = await setupAi(deps, existing);
+    const search = keptSearch(ui, existing, ai.provider, steps.has('search'));
     config = {
       version: 1,
       ...ai,
       activeProfile: existing?.activeProfile ?? 'default',
+      ...(search ? { search } : {}),
     };
     await saveConfig(config);
     ui.success(`Saved to ${configFile()}`);
@@ -68,7 +77,44 @@ export async function runInit(deps: InitDeps): Promise<void> {
   // A local .xlsx file by default; a Google Sheet needs the Google connection first.
   if (steps.has('sheet')) await setupTracking(deps, profileName);
 
+  // Searches by the profile's roles, so it comes after the profile; last, since it's optional.
+  if (steps.has('search')) {
+    await setupSearch(
+      {
+        ui,
+        connect: deps.connect,
+        ...(deps.searchEngineFor ? { engineFor: deps.searchEngineFor } : {}),
+      },
+      config,
+    );
+  }
+
   await finishInit(ui, profileName);
+}
+
+/**
+ * The web search to keep after the AI setup. Searching "with the AI" follows the AI provider:
+ * it's dropped when the new one can't search, and the user hears when it moves to another.
+ */
+function keptSearch(
+  ui: Ui,
+  existing: Config | undefined,
+  provider: Provider,
+  searchStepNext: boolean,
+): SearchConfig | undefined {
+  const search = existing?.search;
+  if (search?.provider !== 'ai' || existing?.provider === provider) return search;
+  const name = WEB_SEARCH_NAMES[provider];
+  if (!name) {
+    if (!searchStepNext) {
+      ui.warn(
+        `Your web search was the AI's own search, which ${PROVIDER_NAMES[provider]} doesn't have. Until you choose another in \`jobhunter init\` → Web search, DuckDuckGo is used.`,
+      );
+    }
+    return undefined;
+  }
+  if (!searchStepNext) ui.info(dim(`Web searches now go through ${name}, on this key.`));
+  return search;
 }
 
 async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
@@ -80,6 +126,7 @@ async function chooseSteps(ui: Ui, existing: Config): Promise<Set<Step>> {
       { name: 'CV (also updates your preferences and candidate profile)', value: 'cv' },
       { name: 'Preferences and candidate profile', value: 'profile' },
       { name: 'Tracking sheet (local file or Google Sheet)', value: 'sheet' },
+      { name: "Web search (finds companies' own job boards)", value: 'search' },
       { name: 'Nothing, exit', value: 'none' },
     ],
     default: 'none',
