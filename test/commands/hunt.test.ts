@@ -324,7 +324,7 @@ describe('jobhunter hunt', () => {
       ['de', 'same job as the one in Applications, posted in Germany'],
     ]);
     expect(summary).toMatchObject({ sameJob: 1, deferred: 1 });
-    expect(ui.output.join('\n')).toContain('1 copies of a job in other locations · ');
+    expect(ui.output.join('\n')).toContain('1 copies for other locations · ');
   });
 
   it('scores only the newest jobs over the limit and leaves the rest for later', async () => {
@@ -352,9 +352,9 @@ describe('jobhunter hunt', () => {
     const many = () => ({
       'board-a': Array.from({ length: DEFAULT_MAX_AI_JOBS + 5 }, (_, i) => job(`j${String(i)}`)),
     });
-    const prompt = 'jobs passed your filters, more than the 100 a run scores by default';
+    const prompt = 'How many should the AI score?';
 
-    it('says how many postings there were when some are the same job', async () => {
+    it('says how many copies for other locations come with the jobs', async () => {
       await setUp();
       const copies = ['Germany', 'Spain', 'Italy'].map((place) =>
         job(place, {
@@ -367,8 +367,8 @@ describe('jobhunter hunt', () => {
       const ui = new FakeUi([DEFAULT_MAX_AI_JOBS]);
       await runHunt({ ...d, ui, interactive: true });
 
-      expect(ui.prompts.find((p) => p.message.includes('jobs passed'))?.message).toMatch(
-        /^106 jobs passed your filters \(108 postings: the same job in several locations counts once\), more than the 100/,
+      expect(ui.output).toContain(
+        '2 more are copies of these jobs for other locations; each job is scored once, with all its locations.',
       );
     });
 
@@ -378,8 +378,11 @@ describe('jobhunter hunt', () => {
       const ui = new FakeUi([DEFAULT_MAX_AI_JOBS + 5]);
       const summary = await runHunt({ ...d, ui, interactive: true });
 
-      const asked = ui.prompts.find((p) => p.message.includes(prompt));
-      expect(asked?.message).toMatch(/^105 jobs passed/);
+      const asked = ui.prompts.find((p) => p.message === prompt);
+      expect(ui.output).toContain(
+        '105 jobs passed your filters, more than the 100 a run scores by default.',
+      );
+      expect(ui.output.join('\n')).not.toContain('copies of these jobs');
       expect(asked?.choices?.map((c) => c.name)).toEqual([
         'The newest 100',
         'All 105',

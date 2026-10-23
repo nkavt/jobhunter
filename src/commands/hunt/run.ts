@@ -332,7 +332,13 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   let maxAiJobs = options.maxAiJobs ?? DEFAULT_MAX_AI_JOBS;
   const interactive = deps.interactive ?? (process.stdin.isTTY && process.stdout.isTTY);
   if (useAi && jobs.length > maxAiJobs && options.maxAiJobs === undefined && interactive) {
-    maxAiJobs = await askHowManyToScore(ui, jobs.length, passed.length, maxAiJobs, config);
+    maxAiJobs = await askHowManyToScore(
+      ui,
+      jobs.length,
+      passed.length - jobs.length,
+      maxAiJobs,
+      config,
+    );
   }
   const toScore = useAi ? jobs.slice(0, maxAiJobs) : jobs;
   summary.deferred = jobs.length - toScore.length;
@@ -446,18 +452,22 @@ function sameJobCopies(jobs: readonly SameJob<Found>[], now: Date): IgnoredJob[]
 async function askHowManyToScore(
   ui: Ui,
   passed: number,
-  /** Including copies of the same job in other locations. */
-  postings: number,
+  /** Copies of those jobs for other locations, judged with them. */
+  copies: number,
   cap: number,
   config: Parameters<typeof getConfiguredAdapterName>[0],
 ): Promise<number> {
   const calls = (jobs: number) => Math.ceil(jobs / BATCH_SIZE);
-  const copies =
-    postings > passed
-      ? ` (${String(postings)} postings: the same job in several locations counts once)`
-      : '';
+  ui.info(
+    `${String(passed)} jobs passed your filters, more than the ${String(cap)} a run scores by default.`,
+  );
+  if (copies > 0) {
+    ui.info(
+      `${String(copies)} more are copies of these jobs for other locations; each job is scored once, with all its locations.`,
+    );
+  }
   const choice = await ui.select<number | 'other'>({
-    message: `${String(passed)} jobs passed your filters${copies}, more than the ${String(cap)} a run scores by default. How many should the AI score?`,
+    message: 'How many should the AI score?',
     choices: [
       {
         name: `The newest ${String(cap)}`,
@@ -528,7 +538,7 @@ function report(
       ' → ' +
       counts([
         [summary.ignored, 'ignored by your filters'],
-        [summary.sameJob, 'copies of a job in other locations', 'optional'],
+        [summary.sameJob, 'copies for other locations', 'optional'],
         [summary.toApply, 'To apply'],
         [summary.skipped, 'Skipped'],
       ]),
