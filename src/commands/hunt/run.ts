@@ -118,7 +118,7 @@ function openTracker(target: TrackerTarget): Tracker {
 export interface HuntSummary {
   fetched: number;
   known: number;
-  /** The same posting more than once in this run: listed twice, or on two boards with one link. */
+  /** The same posting more than once in this run: listed again, or on two boards with one link. */
   repeated: number;
   ignored: number;
   toApply: number;
@@ -494,7 +494,7 @@ function report(
   const fresh = summary.fetched - summary.known - summary.repeated;
   ui.success(
     `${String(summary.fetched)} jobs · ${String(summary.known)} already in your sheet · ` +
-      (summary.repeated > 0 ? `${String(summary.repeated)} listed twice · ` : '') +
+      (summary.repeated > 0 ? `${String(summary.repeated)} duplicates · ` : '') +
       `${String(fresh)} new → ` +
       `${String(summary.ignored)} ignored by your filters · ` +
       (summary.sameJob > 0

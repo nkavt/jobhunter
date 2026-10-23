@@ -211,7 +211,7 @@ describe('jobhunter hunt', () => {
     expect(llm.calls).toHaveLength(1);
     expect(ui.progress).toEqual(['Scoring 2 jobs with fake-model (Fake AI)… 2/2']);
     expect(ui.output.join('\n')).toContain(
-      '6 jobs · 1 already in your sheet · 1 listed twice · 4 new → 2 ignored by your filters · 1 To apply · 1 Skipped',
+      '6 jobs · 1 already in your sheet · 1 duplicates · 4 new → 2 ignored by your filters · 1 To apply · 1 Skipped',
     );
     expect(ui.output.join('\n')).toContain('Senior Frontend Engineer 90 · Company great');
     expect(ui.output.at(-1)).toBe(
