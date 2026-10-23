@@ -25,12 +25,13 @@ import {
   type Usage,
 } from '../../llm/index.js';
 import type { FeedMapping } from '../../mapping/index.js';
-import type { SearchResult } from '../../search/index.js';
 import {
   ATS,
-  boardsDue,
+  boardQueries,
   BUILTIN_MAPPINGS,
   BUILTIN_SOURCES,
+  dueBoards,
+  dueSearches,
   fetchSource,
   huntBoards,
   loadBoardState,
@@ -40,6 +41,7 @@ import {
   saveSourceState,
   SourceError,
   type Ats,
+  type BoardState,
   type SourceDefinition,
   type SourceResult,
 } from '../../sources/index.js';
@@ -89,11 +91,8 @@ export interface HuntDeps {
     source: SourceDefinition,
     mappings: Record<string, FeedMapping>,
   ) => Promise<SourceResult>;
-  /** Systems whose company boards are searched for and read; `[]` turns that off. */
+  /** Systems whose company boards are read; `[]` turns that off. */
   ats?: Ats[];
-  searchWeb?: (query: string) => Promise<SearchResult[]>;
-  /** Waits between web searches. */
-  pause?: (ms: number) => Promise<void>;
   trackerFor?: (target: TrackerTarget) => Tracker;
   /** Finds a spreadsheet app's lock on the local tracking sheet. */
   findLock?: (path: string) => Promise<OpenLock | undefined>;
@@ -204,12 +203,10 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   };
   const ats = deps.ats ?? ATS;
   const boardState = await loadBoardState();
-  const boardsWaiting = boardsDue(profile, boardState, now, {
-    ats,
-    ...(options.force ? { force: true } : {}),
-  });
+  const boardsWaiting = ats.length > 0 && dueBoards(boardState, now, options.force).length > 0;
   if (due.length === 0 && !boardsWaiting) {
     ui.info('Every source was checked recently. Run `jobhunter hunt --force` to check now.');
+    showCompaniesHint(ui, profile, boardState, ats, now);
     return summary;
   }
 
@@ -237,18 +234,12 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   }
   await saveSourceState(state);
 
-  // Companies' own job boards, found by web search. A board lists every job the company has,
-  // so only titles matching the roles go on; the rest would flood the Ignored tab.
+  // Companies' own job boards, found by `jobhunter companies find`. A board lists every job the
+  // company has, so only titles matching the roles go on; the rest would flood the Ignored tab.
   const keywords = titleKeywords(profile.derived);
   const boardJobs = await huntBoards(
-    profile,
     boardState,
-    {
-      ui,
-      ats,
-      ...(deps.searchWeb ? { search: deps.searchWeb } : {}),
-      ...(deps.pause ? { pause: deps.pause } : {}),
-    },
+    { ui, ats },
     {
       now,
       ...(options.force ? { force: true } : {}),
@@ -257,6 +248,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   );
   await saveBoardState(boardState);
   found.push(...boardJobs);
+  showCompaniesHint(ui, profile, boardState, ats, now);
   summary.fetched = found.length;
 
   // Skip jobs already in the sheet (and duplicates within this run)
@@ -424,4 +416,25 @@ function report(ui: Ui, summary: HuntSummary, tracked: TrackedJob[], options: Hu
     );
   }
   if (options.dryRun) ui.info(dim('Dry run: nothing was written to your sheet.'));
+}
+
+/** Searching for company boards is its own command; say when it's worth running. */
+function showCompaniesHint(
+  ui: Ui,
+  profile: Profile,
+  state: BoardState,
+  ats: readonly Ats[],
+  now: Date,
+): void {
+  const queries = ats.length > 0 ? boardQueries(profile, ats) : [];
+  if (queries.length === 0) return;
+  if (Object.keys(state.boards).length === 0) {
+    ui.info(
+      dim(
+        "Companies' own job boards (Greenhouse, Lever, Ashby, Workable) aren't searched yet. Run `jobhunter companies find` to find some.",
+      ),
+    );
+  } else if (dueSearches(queries, state, now).length > 0) {
+    ui.info(dim('Time to look for new company job boards: run `jobhunter companies find`.'));
+  }
 }

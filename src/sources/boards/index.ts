@@ -1,16 +1,20 @@
 export { ATS, ATS_IDS, type Ats, type AtsId } from './ats.js';
 export {
-  BOARD_EVERY_HOURS,
   boardQueries,
+  dueSearches,
+  findCompanyBoards,
+  SEARCH_EVERY_DAYS,
+  type FindBoardsDeps,
+  type FindBoardsOptions,
+  type FindBoardsResult,
+  type SearchProfile,
+} from './find.js';
+export {
+  BOARD_EVERY_HOURS,
   boardJobs,
-  boardsDue,
   companyFromSlug,
   dueBoards,
-  dueSearches,
   huntBoards,
-  MAX_SEARCHES_PER_RUN,
-  SEARCH_EVERY_DAYS,
-  SEARCH_PAUSE_MS,
   type BoardHuntDeps,
   type BoardHuntOptions,
   type BoardJob,

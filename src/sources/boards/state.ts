@@ -29,7 +29,7 @@ export const boardKey = (board: Pick<KnownBoard, 'ats' | 'board'>): string =>
 
 /**
  * Company boards found by web search, and when each search ran. Cache, not config: losing it
- * means searching again, which DuckDuckGo only allows slowly, so a few searches per run.
+ * just means running `jobhunter companies find` again.
  */
 export const boardStateFile = (): string => join(cacheDir(), 'boards.json');
 

@@ -9,11 +9,16 @@ export {
 } from './state.js';
 export {
   ATS,
-  boardsDue,
+  boardQueries,
+  dueBoards,
+  dueSearches,
+  findCompanyBoards,
   huntBoards,
   loadBoardState,
   saveBoardState,
+  SEARCH_EVERY_DAYS,
   type Ats,
   type BoardHuntDeps,
   type BoardState,
+  type FindBoardsResult,
 } from './boards/index.js';

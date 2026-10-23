@@ -1,4 +1,3 @@
-import type { Profile } from '../../config/index.js';
 import type { Job } from '../../jobs/index.js';
 import {
   applyMapping,
@@ -7,34 +6,24 @@ import {
   type FieldRule,
   type MappingResult,
 } from '../../mapping/index.js';
-import { searchDuckDuckGo, SearchError, type SearchResult } from '../../search/index.js';
-import { dim, type Ui } from '../../ui/index.js';
+import type { Ui } from '../../ui/index.js';
 import { USER_AGENT } from '../fetch.js';
 import { ATS, type Ats } from './ats.js';
 import { boardKey, type BoardState, type KnownBoard } from './state.js';
 
-/** Each search is repeated after this long, to find companies that started hiring since. */
-export const SEARCH_EVERY_DAYS = 7;
-/** DuckDuckGo's bot check answers when searches come too fast, so only a few run per hunt. */
-export const MAX_SEARCHES_PER_RUN = 3;
-export const SEARCH_PAUSE_MS = 45_000;
 /** Like the job boards' feeds: no need to read a company's board more often. */
 export const BOARD_EVERY_HOURS = 6;
-/** Searches made from the CV's roles. */
-const MAX_ROLES = 3;
 const BOARD_CONCURRENCY = 6;
 const TIMEOUT_MS = 30_000;
 
 export interface BoardHuntDeps {
   ui: Ui;
-  ats?: Ats[];
-  search?: (query: string) => Promise<SearchResult[]>;
-  pause?: (ms: number) => Promise<void>;
+  ats?: readonly Ats[];
 }
 
 export interface BoardHuntOptions {
   now: Date;
-  /** Read every board, even ones read in the last few hours. Searches keep their pace. */
+  /** Read every board, even ones read in the last few hours. */
   force?: boolean;
   /** Boards list every job the company has; only these reach the hunt. */
   keep: (job: Job) => boolean;
@@ -46,33 +35,6 @@ export interface BoardJob {
   channel: string;
 }
 
-type SearchProfile = Pick<Profile, 'boardSearch' | 'derived' | 'preferences'>;
-
-/**
- * Every search, oldest-first order aside: each query on each ATS's site. The queries are the
- * profile's `boardSearch.queries`, or else the CV's top roles (plus "remote" for remote-only).
- */
-export function boardQueries(profile: SearchProfile, ats: readonly Ats[] = ATS): string[] {
-  const custom = profile.boardSearch?.queries;
-  const remoteOnly = profile.preferences?.workModes.every((mode) => mode === 'remote') ?? false;
-  const queries =
-    custom ??
-    (profile.derived?.roles ?? [])
-      .slice(0, MAX_ROLES)
-      .map((role) => `"${role.replace(/"/g, '')}"${remoteOnly ? ' remote' : ''}`);
-  return ats.flatMap((system) => queries.map((query) => `site:${system.site} ${query.trim()}`));
-}
-
-/** Searches that never ran or ran too long ago, oldest first. */
-export function dueSearches(queries: readonly string[], state: BoardState, now: Date): string[] {
-  const cutoff = now.getTime() - SEARCH_EVERY_DAYS * 86_400_000;
-  const last = (query: string) => {
-    const at = state.searches[query]?.searchedAt;
-    return at ? new Date(at).getTime() : 0;
-  };
-  return queries.filter((query) => last(query) <= cutoff).sort((a, b) => last(a) - last(b));
-}
-
 /** Boards not read in the last few hours (all of them with `force`). */
 export function dueBoards(state: BoardState, now: Date, force = false): KnownBoard[] {
   const cutoff = now.getTime() - BOARD_EVERY_HOURS * 3_600_000;
@@ -81,109 +43,19 @@ export function dueBoards(state: BoardState, now: Date, force = false): KnownBoa
   );
 }
 
-/** Whether a hunt has anything to search or read. */
-export function boardsDue(
-  profile: SearchProfile,
-  state: BoardState,
-  now: Date,
-  options: { force?: boolean; ats?: readonly Ats[] } = {},
-): boolean {
-  return (
-    dueSearches(boardQueries(profile, options.ats), state, now).length > 0 ||
-    dueBoards(state, now, options.force).length > 0
-  );
-}
-
 /**
- * Search for new company boards (a few searches per run), then read every board that's due.
- * Updates `state`; the caller saves it. Problems are shown as warnings, never thrown.
+ * Read every known board that's due. Boards are found by `findCompanyBoards`
+ * (`jobhunter companies find`). Updates `state`; the caller saves it. Problems are shown as
+ * warnings, never thrown.
  */
 export async function huntBoards(
-  profile: SearchProfile,
   state: BoardState,
   deps: BoardHuntDeps,
   options: BoardHuntOptions,
 ): Promise<BoardJob[]> {
   const ats = deps.ats ?? ATS;
   if (ats.length === 0) return [];
-  await discover(profile, state, deps, ats, options.now);
   return readBoards(state, deps, ats, options);
-}
-
-async function discover(
-  profile: SearchProfile,
-  state: BoardState,
-  deps: BoardHuntDeps,
-  ats: readonly Ats[],
-  now: Date,
-): Promise<void> {
-  const { ui } = deps;
-  const queries = boardQueries(profile, ats);
-  // Searches for roles the profile no longer has.
-  state.searches = Object.fromEntries(
-    Object.entries(state.searches).filter(([query]) => queries.includes(query)),
-  );
-  const due = dueSearches(queries, state, now).slice(0, MAX_SEARCHES_PER_RUN);
-  if (due.length === 0) return;
-
-  const search = deps.search ?? searchDuckDuckGo;
-  const pause = deps.pause ?? ((ms: number) => new Promise((done) => setTimeout(done, ms)));
-  const label = 'Searching DuckDuckGo for company job boards';
-  const { stopped } = await ui.task(
-    `${label}… 0/${String(due.length)}`,
-    async (update) => {
-      let added = 0;
-      let stopped: SearchError | undefined;
-      for (const [index, query] of due.entries()) {
-        if (index > 0) await pause(SEARCH_PAUSE_MS);
-        let results: SearchResult[];
-        try {
-          results = await search(query);
-        } catch (error) {
-          if (!(error instanceof SearchError)) throw error;
-          stopped = error;
-          break;
-        }
-        let found = 0;
-        for (const result of results) {
-          const board = boardFromResult(result.url, ats);
-          if (!board) continue;
-          found++;
-          const key = boardKey(board);
-          if (state.boards[key]) continue;
-          state.boards[key] = { ...board, foundAt: now.toISOString() };
-          added++;
-        }
-        state.searches[query] = { searchedAt: now.toISOString(), found };
-        update(`${label}… ${String(index + 1)}/${String(due.length)}`);
-      }
-      return { added, stopped };
-    },
-    (r) => `DuckDuckGo: ${String(r.added)} new company job boards`,
-  );
-  const left = dueSearches(queries, state, now).length;
-  if (stopped) {
-    ui.info(dim(`${stopped.message} The remaining ${String(left)} searches wait for a later run.`));
-  } else if (left > 0) {
-    ui.info(dim(`${String(left)} more searches for company job boards run in later hunts.`));
-  }
-}
-
-function boardFromResult(
-  href: string,
-  ats: readonly Ats[],
-): Pick<KnownBoard, 'ats' | 'board'> | undefined {
-  let url: URL;
-  try {
-    url = new URL(href);
-  } catch {
-    return undefined;
-  }
-  for (const system of ats) {
-    const board = system.boardFrom(url);
-    if (board) return { ats: system.id, board };
-  }
-  return undefined;
 }
 
 type BoardOutcome =

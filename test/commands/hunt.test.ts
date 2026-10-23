@@ -17,6 +17,7 @@ import type { Job } from '../../src/jobs/index.js';
 import {
   loadBoardState,
   loadSourceState,
+  saveBoardState,
   saveSourceState,
   SourceError,
   type Ats,
@@ -505,12 +506,21 @@ describe('jobhunter hunt: company job boards', () => {
     postedAt: '2026-10-10T10:00:00.000Z',
   });
 
-  it('searches for boards, reads them, and only passes on jobs for your roles', async () => {
+  it('reads the known boards and only passes on jobs for your roles', async () => {
     await setUp();
     // The feeds were just checked: the boards alone are reason enough to run.
     await saveSourceState({
       'board-a': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
       'board-b': { lastFetchedAt: now.toISOString(), lastJobCount: 0 },
+    });
+    await saveBoardState({
+      searches: {
+        'site:ats.example "Senior Frontend Engineer" remote': {
+          searchedAt: now.toISOString(),
+          found: 1,
+        },
+      },
+      boards: { 'lever:acme': { ats: 'lever', board: 'acme', foundAt: now.toISOString() } },
     });
     server.use(
       http.get('https://api.ats.example/acme', () =>
@@ -520,24 +530,44 @@ describe('jobhunter hunt: company job boards', () => {
         ]),
       ),
     );
-    const searched: string[] = [];
-    const { deps: d, tracker } = deps({});
-    const summary = await runHunt({
-      ...d,
-      ats: [EXAMPLE_ATS],
-      searchWeb: (query) => {
-        searched.push(query);
-        return Promise.resolve([{ url: 'https://ats.example/acme/1', title: '', snippet: '' }]);
-      },
-      pause: () => Promise.resolve(),
-    });
+    const { deps: d, ui, tracker } = deps({});
+    const summary = await runHunt({ ...d, ats: [EXAMPLE_ATS] });
 
-    expect(searched).toEqual(['site:ats.example "Senior Frontend Engineer" remote']);
     expect(summary).toMatchObject({ fetched: 1, toApply: 1, ignored: 0 });
     expect(tracker.applications.map((a) => [a.job.title, a.job.company, a.channel])).toEqual([
       ['Senior Frontend Engineer 85', 'Acme', 'Example ATS'],
     ]);
     expect(tracker.ignored).toEqual([]);
-    expect(Object.keys((await loadBoardState()).boards)).toEqual(['lever:acme']);
+    expect((await loadBoardState()).boards['lever:acme']?.lastFetchedAt).toBe(now.toISOString());
+    // Searched recently, so no reminder.
+    expect(ui.output.join('\n')).not.toContain('companies find');
+  });
+
+  it("doesn't search, and suggests `companies find` when no boards are known", async () => {
+    await setUp();
+    const { deps: d, ui } = deps({});
+    await runHunt({ ...d, ats: [EXAMPLE_ATS] });
+    expect(ui.output.join('\n')).toContain('Run `jobhunter companies find` to find some.');
+    expect(await loadBoardState()).toEqual({ searches: {}, boards: {} });
+  });
+
+  it('suggests `companies find` when the weekly searches are due', async () => {
+    await setUp();
+    await saveBoardState({
+      searches: {},
+      boards: {
+        'lever:acme': {
+          ats: 'lever',
+          board: 'acme',
+          foundAt: now.toISOString(),
+          lastFetchedAt: now.toISOString(),
+        },
+      },
+    });
+    const { deps: d, ui } = deps({});
+    await runHunt({ ...d, ats: [EXAMPLE_ATS] });
+    expect(ui.output.join('\n')).toContain(
+      'Time to look for new company job boards: run `jobhunter companies find`.',
+    );
   });
 });

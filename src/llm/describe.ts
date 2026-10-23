@@ -19,6 +19,14 @@ export function getProviderName(provider: Provider, baseURL?: string): string {
   return PROVIDER_NAMES[provider];
 }
 
+/** The provider's built-in web search, for messages; `undefined` = it has none. */
+export const WEB_SEARCH_NAMES: Record<Provider, string | undefined> = {
+  claude: "Claude's web search",
+  gemini: 'Gemini with Google Search',
+  // Chat Completions has no standard web search tool.
+  openai: undefined,
+};
+
 /** Which model is doing the work, for messages: `claude-sonnet-5-5 (Anthropic)`. */
 export function getAdapterName(adapter: Pick<LLMAdapter, 'model' | 'providerName'>): string {
   return `${adapter.model} (${adapter.providerName})`;

@@ -1,4 +1,5 @@
 import type { Command } from 'commander';
+import { registerCompanies } from './companies/index.js';
 import { registerHunt } from './hunt/index.js';
 import { registerInit } from './init/index.js';
 import { registerSheet } from './sheet/index.js';
@@ -7,6 +8,7 @@ import { notImplemented } from './not-implemented.js';
 export function registerCommands(program: Command): void {
   registerInit(program);
   registerHunt(program);
+  registerCompanies(program);
   registerSheet(program);
 
   program

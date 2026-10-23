@@ -3,19 +3,18 @@ import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import type { Profile } from '../../src/config/index.js';
 import { FeedMappingSchema, parseFeed } from '../../src/mapping/index.js';
-import { SearchError, type SearchResult } from '../../src/search/index.js';
+import { SearchError, type SearchEngine, type SearchResult } from '../../src/search/index.js';
 import {
   ATS,
   boardJobs,
   boardQueries,
-  boardsDue,
   companyFromSlug,
+  dueBoards,
   dueSearches,
+  findCompanyBoards,
   huntBoards,
   loadBoardState,
-  MAX_SEARCHES_PER_RUN,
   saveBoardState,
-  SEARCH_PAUSE_MS,
   type Ats,
   type AtsId,
   type BoardState,
@@ -211,46 +210,42 @@ describe('board searches', () => {
   });
 });
 
-describe('huntBoards', () => {
-  const server = useMockServer();
+describe('findCompanyBoards', () => {
   useTempHome();
 
-  const keepAll = () => true;
   const lever = ats('lever');
-  const pauses: number[] = [];
-  const deps = (search: (query: string) => Promise<SearchResult[]>) => ({
-    ui: new FakeUi([]),
-    ats: [lever],
-    search,
-    pause: (ms: number) => {
-      pauses.push(ms);
-      return Promise.resolve();
-    },
-  });
   const result = (url: string): SearchResult => ({ url, title: '', snippet: '' });
-  const leverFeed = (slug: string, body: string) =>
-    http.get(`https://api.lever.co/v0/postings/${slug}`, () =>
-      HttpResponse.text(body, { headers: { 'Content-Type': 'application/json' } }),
-    );
+  const engine = (
+    search: (query: string) => Promise<SearchResult[]>,
+    pauseMs = 0,
+  ): SearchEngine => ({ name: 'Test Search', pauseMs, search });
 
-  it('finds boards by search, reads them, and remembers both', async () => {
-    pauses.length = 0;
-    server.use(leverFeed('lendbuzz', fixture('lever.json')), leverFeed('portcast', '[]'));
+  it('runs every due search at the engine pace and remembers the boards', async () => {
+    const pauses: number[] = [];
     const queries: string[] = [];
     const state = emptyState();
-    const jobs = await huntBoards(
+    const ui = new FakeUi([]);
+    const found = await findCompanyBoards(
       profile,
       state,
-      deps((query) => {
-        queries.push(query);
-        return Promise.resolve([
-          result('https://jobs.lever.co/lendbuzz/1'),
-          result('https://jobs.lever.co/lendbuzz/2'),
-          result('https://jobs.lever.co/portcast/3'),
-          result('https://example.com/elsewhere'),
-        ]);
-      }),
-      { now, keep: (job) => job.title.includes('Engineer') },
+      {
+        ui,
+        ats: [lever],
+        engine: engine((query) => {
+          queries.push(query);
+          return Promise.resolve([
+            result('https://jobs.lever.co/lendbuzz/1'),
+            result('https://jobs.lever.co/lendbuzz/2'),
+            result('https://jobs.lever.co/portcast/3'),
+            result('https://example.com/elsewhere'),
+          ]);
+        }, 1000),
+        pause: (ms) => {
+          pauses.push(ms);
+          return Promise.resolve();
+        },
+      },
+      { now },
     );
 
     expect(queries).toEqual([
@@ -258,44 +253,127 @@ describe('huntBoards', () => {
       'site:jobs.lever.co "Platform Engineer"',
       'site:jobs.lever.co "Go Developer"',
     ]);
-    expect(pauses).toEqual([SEARCH_PAUSE_MS, SEARCH_PAUSE_MS]);
-    // Only the jobs `keep` lets through; the company named after the slug.
-    expect(jobs.map((j) => [j.job.title, j.job.company, j.channel])).toEqual([
-      ['Backend Engineer', 'Lendbuzz', 'Lever'],
-    ]);
+    expect(pauses).toEqual([1000, 1000]);
+    expect(found).toEqual({ searched: 3, added: 2, left: 0, failed: 0 });
     expect(Object.keys(state.boards).sort()).toEqual(['lever:lendbuzz', 'lever:portcast']);
-    expect(state.boards['lever:lendbuzz']?.lastFetchedAt).toBe(now.toISOString());
     expect(state.searches['site:jobs.lever.co "Go Developer"']).toEqual({
       searchedAt: now.toISOString(),
       found: 4 - 1,
     });
+    expect(ui.output).toContain('✔ Test Search: 2 new company job boards');
+    // Saved as it goes.
+    expect(await loadBoardState()).toEqual(state);
 
-    // Saved and read back: nothing is due again right away.
-    await saveBoardState(state);
-    const saved = await loadBoardState();
-    expect(saved).toEqual(state);
-    expect(boardsDue(profile, saved, now, { ats: [lever] })).toBe(false);
-    expect(boardsDue(profile, saved, now, { ats: [lever], force: true })).toBe(true);
+    // Nothing due again for a week, unless forced.
+    const again = await findCompanyBoards(
+      profile,
+      state,
+      { ui, ats: [lever], engine: engine(() => Promise.resolve([])) },
+      { now },
+    );
+    expect(again.searched).toBe(0);
+    const forced = await findCompanyBoards(
+      profile,
+      state,
+      { ui, ats: [lever], engine: engine(() => Promise.resolve([])) },
+      { now, force: true, limit: 1 },
+    );
+    expect(forced.searched).toBe(1);
   });
 
-  it('runs a few searches per hunt and stops at the bot check', async () => {
+  it('stops when the engine refuses, keeping the searches that ran', async () => {
     const many = { ...profile, boardSearch: { queries: ['a', 'b', 'c', 'd', 'e'] } };
     let calls = 0;
     const state = emptyState();
-    const d = deps(() => {
-      calls++;
-      return calls === 2
-        ? Promise.reject(new SearchError('DuckDuckGo asked to slow down.', 'rate-limited'))
-        : Promise.resolve([]);
-    });
-    await huntBoards(many, state, d, { now, keep: keepAll });
+    const found = await findCompanyBoards(
+      many,
+      state,
+      {
+        ui: new FakeUi([]),
+        ats: [lever],
+        engine: engine(() => {
+          calls++;
+          return calls === 2
+            ? Promise.reject(new SearchError('Slow down.', 'rate-limited'))
+            : Promise.resolve([]);
+        }),
+      },
+      { now },
+    );
     expect(calls).toBe(2);
-    expect(Object.keys(state.searches)).toEqual(['site:jobs.lever.co a']);
-    expect(d.ui.output.join('\n')).toContain('The remaining 4 searches wait for a later run.');
+    expect(found.stopped?.reason).toBe('rate-limited');
+    expect(found).toMatchObject({ searched: 1, left: 4 });
+    expect(Object.keys((await loadBoardState()).searches)).toEqual(['site:jobs.lever.co a']);
+  });
 
-    calls = 10;
-    await huntBoards(many, state, d, { now, keep: keepAll });
-    expect(Object.keys(state.searches)).toHaveLength(1 + MAX_SEARCHES_PER_RUN);
+  it('skips a search that fails on its own and tries it again next time', async () => {
+    const two = { ...profile, boardSearch: { queries: ['a', 'b'] } };
+    const state = emptyState();
+    const found = await findCompanyBoards(
+      two,
+      state,
+      {
+        ui: new FakeUi([]),
+        ats: [lever],
+        engine: engine((query) =>
+          query.endsWith(' a')
+            ? Promise.reject(new SearchError('Search answered with HTTP 503.'))
+            : Promise.resolve([]),
+        ),
+      },
+      { now },
+    );
+    expect(found).toMatchObject({ searched: 1, failed: 1, left: 1 });
+    expect(found.lastFailure?.message).toBe('Search answered with HTTP 503.');
+    expect(Object.keys(state.searches)).toEqual(['site:jobs.lever.co b']);
+  });
+
+  it('forgets searches for roles the profile no longer has', async () => {
+    const state = emptyState();
+    state.searches['site:jobs.lever.co "Old Role"'] = { searchedAt: now.toISOString(), found: 0 };
+    await findCompanyBoards(
+      { ...profile, boardSearch: { queries: [] } },
+      state,
+      { ui: new FakeUi([]), ats: [lever], engine: engine(() => Promise.resolve([])) },
+      { now },
+    );
+    expect(state.searches).toEqual({});
+  });
+});
+
+describe('huntBoards', () => {
+  const server = useMockServer();
+  useTempHome();
+
+  const keepAll = () => true;
+  const lever = ats('lever');
+  const leverFeed = (slug: string, body: string) =>
+    http.get(`https://api.lever.co/v0/postings/${slug}`, () =>
+      HttpResponse.text(body, { headers: { 'Content-Type': 'application/json' } }),
+    );
+  const known = (...boards: string[]): BoardState => {
+    const state = emptyState();
+    for (const board of boards) {
+      state.boards[`lever:${board}`] = { ats: 'lever', board, foundAt: '2026-10-01T00:00:00Z' };
+    }
+    return state;
+  };
+
+  it('reads the known boards and only passes on the jobs `keep` lets through', async () => {
+    server.use(leverFeed('lendbuzz', fixture('lever.json')), leverFeed('portcast', '[]'));
+    const state = known('lendbuzz', 'portcast');
+    const jobs = await huntBoards(
+      state,
+      { ui: new FakeUi([]), ats: [lever] },
+      { now, keep: (job) => job.title.includes('Engineer') },
+    );
+    // The company named after the slug.
+    expect(jobs.map((j) => [j.job.title, j.job.company, j.channel])).toEqual([
+      ['Backend Engineer', 'Lendbuzz', 'Lever'],
+    ]);
+    expect(state.boards['lever:lendbuzz']?.lastFetchedAt).toBe(now.toISOString());
+    expect(dueBoards(state, now)).toEqual([]);
+    expect(dueBoards(state, now, true)).toHaveLength(2);
   });
 
   it('forgets boards that no longer exist and retries ones that failed', async () => {
@@ -309,18 +387,18 @@ describe('huntBoards', () => {
         () => new HttpResponse(null, { status: 503 }),
       ),
     );
-    const state = emptyState();
-    for (const board of ['gone', 'busy']) {
-      state.boards[`lever:${board}`] = { ats: 'lever', board, foundAt: '2026-10-01T00:00:00Z' };
-    }
-    const d = deps(() => Promise.resolve([]));
-    const jobs = await huntBoards({ ...profile, boardSearch: { queries: [] } }, state, d, {
-      now,
-      keep: keepAll,
-    });
+    const state = known('gone', 'busy');
+    const ui = new FakeUi([]);
+    const jobs = await huntBoards(state, { ui, ats: [lever] }, { now, keep: keepAll });
     expect(jobs).toEqual([]);
     expect(Object.keys(state.boards)).toEqual(['lever:busy']);
     expect(state.boards['lever:busy']?.lastFetchedAt).toBeUndefined();
-    expect(d.ui.output.join('\n')).toContain("Couldn't read 1 company job boards");
+    expect(ui.output.join('\n')).toContain("Couldn't read 1 company job boards");
+  });
+
+  it('keeps the state through a save', async () => {
+    const state = known('acme');
+    await saveBoardState(state);
+    expect(await loadBoardState()).toEqual(state);
   });
 });
