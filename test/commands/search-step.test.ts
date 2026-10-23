@@ -84,6 +84,21 @@ describe('jobhunter init: company search', () => {
     expect((await readConfig())?.search).toBeUndefined();
   });
 
+  it("doesn't offer AI search for an OpenAI-compatible API, which has none", async () => {
+    await setUp({ ...config, provider: 'openai', baseURL: 'https://openrouter.ai/api/v1' });
+    const ui = new FakeUi(['search', 'skip']);
+    await init(ui);
+    const prompt = ui.prompts.find(
+      (p) => p.message === 'How should Jobhunter search for companies?',
+    );
+    expect(prompt?.choices?.map((c) => c.value)).toEqual([
+      'serpapi',
+      'brave',
+      'duckduckgo',
+      'skip',
+    ]);
+  });
+
   it('saves a SerpApi key after a test search, keeping the boards it found', async () => {
     await setUp();
     const engines = fakeEngines();
