@@ -26,7 +26,7 @@ export function chatHandler(baseURL: string, ...responses: (JsonBodyType | Respo
 
 export function completion(
   content: string | null,
-  overrides: { finish_reason?: string; usage?: Record<string, unknown> } = {},
+  overrides: { finish_reason?: string; refusal?: string; usage?: Record<string, unknown> } = {},
 ) {
   return {
     id: 'chatcmpl-test',
@@ -36,7 +36,7 @@ export function completion(
     choices: [
       {
         index: 0,
-        message: { role: 'assistant', content, refusal: null },
+        message: { role: 'assistant', content, refusal: overrides.refusal ?? null },
         finish_reason: overrides.finish_reason ?? 'stop',
         logprobs: null,
       },

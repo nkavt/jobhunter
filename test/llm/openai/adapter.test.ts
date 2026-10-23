@@ -374,6 +374,53 @@ describe('OpenAIAdapter: generateText', () => {
       'cut off at 3 tokens',
     );
   });
+
+  it('switches to max_completion_tokens, with room to think, once max_tokens is rejected', async () => {
+    const { handler, requests } = chatHandler(
+      BASE,
+      apiError(
+        400,
+        "Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.",
+        'unsupported_parameter',
+      ),
+      completion('Hi'),
+      completion('Again'),
+    );
+    server.use(handler);
+    const llm = adapter();
+
+    await expect(llm.generateText({ prompt: 'Hi', maxTokens: 100 })).resolves.toMatchObject({
+      text: 'Hi',
+    });
+    await llm.checkModelAccess();
+
+    expect(requests.map((request) => request.body.max_tokens)).toEqual([100, undefined, undefined]);
+    expect(requests.map((request) => request.body.max_completion_tokens)).toEqual([
+      undefined,
+      100 + 16_384,
+      16 + 16_384,
+    ]);
+  });
+
+  it('says thinking used up the tokens when a cloud reasoning model is cut off', async () => {
+    server.use(
+      chatHandler(
+        BASE,
+        apiError(400, "Unsupported parameter: 'max_tokens'. Use 'max_completion_tokens' instead."),
+        completion('', { finish_reason: 'length' }),
+      ).handler,
+    );
+    await expect(adapter().generateText({ prompt: 'x', maxTokens: 100 })).rejects.toThrow(
+      'ran out of tokens before finishing its answer (100, plus 16384 for thinking). Try a model that thinks less.',
+    );
+  });
+
+  it('says so when the model declines to answer', async () => {
+    server.use(chatHandler(BASE, completion(null, { refusal: "I can't help with that." })).handler);
+    await expect(adapter().generateText({ prompt: 'x' })).rejects.toThrow(
+      "The model declined to answer: I can't help with that.",
+    );
+  });
 });
 
 describe('OpenAIAdapter: generateJSON', () => {
@@ -404,6 +451,42 @@ describe('OpenAIAdapter: generateJSON', () => {
       /^Score\n\nAnswer with only a JSON object that matches this JSON Schema:\n\n```json\n\{.*\}\n```$/s,
     );
     expect(user?.content).toContain('"score"');
+  });
+
+  it('falls back to JSON mode, then to the prompt alone, for servers without structured output', async () => {
+    const { handler, requests } = chatHandler(
+      BASE,
+      apiError(
+        400,
+        "'response_format.type' : value is not one of the allowed values ['text', 'json_object']",
+      ),
+      apiError(400, 'response_format is not supported by this model'),
+      completion('{"score": 80}'),
+      completion('{"score": 70}'),
+    );
+    server.use(handler);
+    const llm = adapter();
+
+    await expect(llm.generateJSON({ prompt: 'Score', schema })).resolves.toMatchObject({
+      data: { score: 80 },
+    });
+    await llm.generateJSON({ prompt: 'Score', schema });
+
+    expect(requests.map((request) => request.body.response_format)).toEqual([
+      expect.objectContaining({ type: 'json_schema' }),
+      { type: 'json_object' },
+      undefined,
+      undefined,
+    ]);
+  });
+
+  it('does not retry other bad requests', async () => {
+    const { handler, requests } = chatHandler(BASE, apiError(400, 'Invalid image URL'));
+    server.use(handler);
+    await expect(adapter().generateJSON({ prompt: 'x', schema })).rejects.toThrow(
+      'Invalid image URL',
+    );
+    expect(requests).toHaveLength(1);
   });
 
   it('accepts JSON wrapped in a code fence', async () => {

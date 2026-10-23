@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import { extname } from 'node:path';
-import mammoth from 'mammoth';
 import type { LLMAdapter, Usage } from '../llm/index.js';
 import { emptyUsage } from '../llm/index.js';
 import { renderSystemPrompt, renderUserPrompt } from '../prompts/index.js';
+import { DocumentError, docxText } from '../util/document-text.js';
 import { resolveUserPath } from '../util/user-path.js';
 
 export const MAX_CV_BYTES = 10 * 1024 * 1024;
@@ -94,7 +94,7 @@ export async function convertCv(cv: LoadedCv, llm: LLMAdapter): Promise<Converte
         }
       : {
           prompt: renderUserPrompt('cv-to-markdown', {
-            cv: `\n<cv>\n${await docxText(cv.data)}\n</cv>`,
+            cv: `\n<cv>\n${await wordText(cv.data)}\n</cv>`,
           }),
         }),
   });
@@ -104,16 +104,12 @@ export async function convertCv(cv: LoadedCv, llm: LLMAdapter): Promise<Converte
   return { markdown, usage };
 }
 
-async function docxText(data: Buffer): Promise<string> {
+async function wordText(data: Buffer): Promise<string> {
   try {
-    const { value } = await mammoth.extractRawText({ buffer: data });
-    if (!value.trim()) throw new CvError('No text found in the Word document.');
-    return value;
+    return await docxText(data);
   } catch (error) {
-    if (error instanceof CvError) throw error;
-    throw new CvError("Can't read this Word document. Is it a valid .docx file?", {
-      cause: error,
-    });
+    if (error instanceof DocumentError) throw new CvError(error.message, { cause: error });
+    throw error;
   }
 }
 
