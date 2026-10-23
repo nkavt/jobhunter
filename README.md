@@ -6,32 +6,36 @@
 [![Node.js](https://img.shields.io/node/v/jobhunter)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-A command-line job hunter. It reads your CV, checks remote job boards, lets an AI score every new job against your profile, and keeps everything in a tracking spreadsheet, so you don't see the same job again on the next run. The spreadsheet is a file on your computer, or a Google Sheet in your Drive if you prefer.
+A command-line job hunter. It reads your CV, checks remote job boards and the careers pages of companies hiring for your roles, lets an AI score every new job against your profile, and keeps everything in a tracking spreadsheet, so you don't see the same job again on the next run. The spreadsheet is a file on your computer, or a Google Sheet in your Drive if you prefer.
 
 ```
 $ jobhunter hunt
 ✔ Remotive: 18 jobs
 ✔ Remote OK: 99 jobs
 ✔ We Work Remotely: 89 jobs
+✔ Company job boards: 41 jobs for your roles from 12 boards
 ✔ Checked your sheet
 ✔ Scored 35 jobs
 
 Best matches:
  92  Senior Full-Stack Engineer · Acme (Remotive)
      Strong match: 6 years of React and Node.js, fully remote, salary above your minimum.
+ 88  Frontend Engineer · Initech (Greenhouse)
+     Your React and design-system work fits; remote within Europe, matching your timezone.
  85  Product Engineer · Globex (We Work Remotely)
      Good fit for your TypeScript and Rails experience; EU timezones only, which suits you.
  …
 
-✔ 206 jobs · 0 already in your sheet · 206 new → 171 ignored by your filters · 12 To apply · 23 Skipped
+✔ 247 jobs · 0 already in your sheet · 247 new → 212 ignored by your filters · 12 To apply · 23 Skipped
 ```
 
 - **Your CV is the source of truth.** Jobhunter works out your roles, seniority and stack from it and turns them into a short candidate profile the AI uses when scoring jobs.
+- **Jobs straight from the companies.** Many companies post jobs only on their own careers page, hosted by Greenhouse, Lever, Ashby or Workable. `jobhunter companies find` searches the web for companies hiring for your roles there, and every `hunt` reads their boards too.
 - **Cheap filters first, the AI second.** Code drops jobs that clearly don't fit (wrong role, too old, wrong employment type or work mode, salary below your minimum, companies you avoid). Only the rest goes to the AI, which gives each a score from 0 to 100 and a short note.
 - **Everything lands in a spreadsheet** with status tabs, colours and dropdowns, ready for you to track your applications. By default it's an `.xlsx` file on your computer that you open in LibreOffice or Excel. No Google account needed.
 - **Your data stays yours.** Your keys, profile and sheet live on your machine. If you choose a Google Sheet instead, Jobhunter can only see the files it created in your Drive.
 
-> 🚧 **Early version (0.3).** `init` and `hunt` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
+> 🚧 **Early version (0.3).** `init`, `hunt` and `companies find` work and are ready for daily use, but Jobhunter is still being actively developed: more commands are on the way, and details like the sheet layout may change between versions. Bug reports and ideas are welcome.
 
 > Jobhunter works with **Claude (Anthropic)**, **Gemini (Google)**, and any **OpenAI-compatible API** (OpenAI, OpenRouter, Groq, a local Ollama or LM Studio, …).
 
@@ -69,6 +73,12 @@ Best matches:
 
 - **A spreadsheet app** to open your tracking sheet. We recommend [LibreOffice](https://www.libreoffice.org/) (free and open source). Excel works too. See [Using a local file](#using-a-local-file).
 - **Optional: a Google account**, only if you'd rather keep the sheet in Google Sheets. That also needs a free Google Cloud project to sign in with ([step-by-step guide below](#setting-up-google-access)).
+- **Optional: a web search API key**, to find companies' own job boards quickly with [`jobhunter companies find`](#jobhunter-companies-find). Either works within its free tier:
+  - **[SerpApi](https://serpapi.com/manage-api-key)** (250 free searches a month), or
+  - **[Brave Search API](https://api-dashboard.search.brave.com)** ($5 of free credit a month; asks for a credit card).
+
+  Without one, Jobhunter can use your AI's own web search (Claude, or Gemini with billing turned on) or DuckDuckGo, which is free but slow. See [Choosing a search](#choosing-a-search).
+
 - **Your CV** as PDF, DOCX, Markdown or plain text.
 
 ## Install
@@ -308,6 +318,8 @@ Also planned: using an existing spreadsheet as your tracking sheet, and Jobhunte
 | **To apply**, **Applied**, **Interview & Offer**, **Declined**, **Ghosted**, **Skipped** | Read-only views of Applications filtered by status and sorted by company. They update by themselves as you change statuses.                                                                                          |
 | **Ignored**                                                                              | Jobs the filters dropped, with the reason. They stay here so they aren't checked again.                                                                                                                              |
 
+**Where it was found** (the **Channel** column) names the job board, such as Remotive. For a job from a company's own careers page, it names the system hosting it (Greenhouse, Lever, Ashby or Workable), and **Company** says whose page it is.
+
 **To track an application**, change its **Status** in the Applications tab with the dropdown: To apply → Applied → Interview → Offer, or Declined, Ghosted, Withdrawn or Skipped. Fill in **Applied** and **Last update** as you go. The row colour and the view tabs follow the status.
 
 A few hidden columns (Key, Source, Found) and a hidden `_meta` tab are how Jobhunter recognises jobs it has already seen. Please don't rename or delete them. You can add your own columns after the last one.
@@ -346,6 +358,17 @@ A few hidden columns (Key, Source, Found) and a hidden `_meta` tab are how Jobhu
 Use `"queries": []` to stop searching. Boards found before are still read; delete `~/.cache/jobhunter/boards.json` to forget them.
 
 **Change the web search.** Run `jobhunter init` → **Web search**. Press Enter at the key prompt to keep your saved key.
+
+**Run it on a schedule.** For example `hunt` every morning and `companies find` every Monday, with cron (`crontab -e` on macOS and Linux):
+
+```sh
+0 8 * * *  /usr/local/bin/jobhunter hunt >> ~/jobhunter.log 2>&1
+0 7 * * 1  /usr/local/bin/jobhunter companies find >> ~/jobhunter.log 2>&1
+```
+
+- Use the full path that `which jobhunter` prints: cron doesn't load your shell's `PATH`, so a Node.js installed with nvm or Homebrew isn't found otherwise.
+- Without a terminal, nothing waits for an answer. `hunt` scores at most 100 jobs (add `--max-ai-jobs <n>` to change that), and stops before fetching if your sheet file is open. The output goes to `~/jobhunter.log`.
+- With a Google Sheet in "Testing" mode, the sign-in expires after 7 days and scheduled runs fail until you sign in again; [publish the app](#3-configure-the-consent-screen) to avoid that.
 
 **Sign in again, or switch Google accounts.** Run `jobhunter init` → **Tracking sheet** → **In a Google Sheet** → **Sign in again**.
 
@@ -416,6 +439,12 @@ Set `JOBHUNTER_HOME` to keep everything in another folder instead (useful for te
 **"… didn't accept the API key" or "… run out of searches" from `companies find`.** Check the key or plan with the search service, then run `jobhunter init` → **Web search** to paste a new key or choose another search.
 
 **"Gemini answered "You exceeded your current quota…" to a Google Search request."** On Gemini's free tier, Gemini 3 models can't use Google Search at all, so its quota is zero and waiting doesn't help. Your key still works for scoring. Either turn on billing for your project in [Google AI Studio](https://aistudio.google.com/) (that includes 5,000 free searches a month; see [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing)), or run `jobhunter init` → **Web search** and choose SerpApi, Brave or DuckDuckGo.
+
+**"Stopped after 2 failed searches in a row" from `companies find`.** The search service couldn't be reached twice running, usually because there's no internet connection (or a VPN or firewall is in the way). The searches that went through are kept; check your connection and run `jobhunter companies find` again for the rest.
+
+**"Company job boards are searched for by your roles, which come from your CV."** `companies find` needs your CV first. Run `jobhunter init` → **CV**, or set your own queries in `profile.json` (see [Common tasks](#common-tasks)).
+
+**"Couldn't read N company job boards; the next hunt tries again."** Those companies' boards didn't answer this time (a timeout, or the service was down). Nothing to do: they're read again on the next `hunt`. A board that no longer exists is forgotten by itself.
 
 **"jobhunter.xlsx is open in LibreOffice…"** Close the file and choose **It's closed now**. If nothing has it open (the app crashed, say), choose **Continue anyway**: a lock file was left next to your sheet (`.~lock.jobhunter.xlsx#` for LibreOffice, `~$…` for Excel), and you can delete it.
 
