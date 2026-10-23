@@ -16,7 +16,7 @@ import {
   spreadsheetUrl,
   type GoogleClient,
 } from '../../google/index.js';
-import type { Job } from '../../jobs/index.js';
+import { groupSameJobs, withAllLocations, type Job } from '../../jobs/index.js';
 import {
   defaultParallelCalls,
   getAdapterName,
@@ -123,6 +123,8 @@ export interface HuntSummary {
   skipped: number;
   /** Passed the filters but over `maxAiJobs`; not written, so a later run picks them up. */
   deferred: number;
+  /** Copies of a job posted once per location: judged with it, written to Ignored. */
+  sameJob: number;
   /** Kept for the next run because the local sheet was open. */
   pending: number;
   usage?: Usage;
@@ -208,6 +210,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     toApply: 0,
     skipped: 0,
     deferred: 0,
+    sameJob: 0,
     pending: 0,
   };
   const boardsWaiting = ats.length > 0 && dueBoards(boardState, now, options.force).length > 0;
@@ -324,20 +327,37 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   summary.ignored = ignored.length;
   await write({ ignored });
 
-  // AI score (newest first, so a cap keeps the freshest jobs)
+  // The same job posted once per location is judged once, with all its locations
+  // (newest first, so a cap keeps the freshest jobs)
   const minScore = options.minScore ?? minScoreFor(profile.preferences);
   passed.sort((a, b) => (b.job.postedAt ?? '').localeCompare(a.job.postedAt ?? ''));
+  const jobs = groupSameJobs(passed, (item) => item.job);
   let maxAiJobs = options.maxAiJobs ?? DEFAULT_MAX_AI_JOBS;
   const interactive = deps.interactive ?? (process.stdin.isTTY && process.stdout.isTTY);
-  if (useAi && passed.length > maxAiJobs && options.maxAiJobs === undefined && interactive) {
-    maxAiJobs = await askHowManyToScore(ui, passed.length, maxAiJobs, config);
+  if (useAi && jobs.length > maxAiJobs && options.maxAiJobs === undefined && interactive) {
+    maxAiJobs = await askHowManyToScore(ui, jobs.length, maxAiJobs, config);
   }
-  const toScore = useAi ? passed.slice(0, maxAiJobs) : passed;
-  summary.deferred = passed.length - toScore.length;
+  const toScore = useAi ? jobs.slice(0, maxAiJobs) : jobs;
+  summary.deferred = jobs.length - toScore.length;
+  // The other copies go to Ignored, so they aren't judged again on the next run. Copies of
+  // deferred jobs wait with them, so the job is judged with all its locations later.
+  const copies: IgnoredJob[] = toScore.flatMap(({ others }) =>
+    others.map((item) => ({
+      ...item,
+      reason: `same job as the one in Applications, posted in ${item.job.location.text ?? 'another location'}`,
+      foundAt: now,
+    })),
+  );
+  summary.sameJob = copies.length;
 
   let tracked: TrackedJob[];
   if (!useAi) {
-    tracked = toScore.map((item) => ({ ...item, status: 'To apply', note: '', foundAt: now }));
+    tracked = toScore.map(({ first }) => ({
+      ...first,
+      status: 'To apply',
+      note: '',
+      foundAt: now,
+    }));
   } else if (toScore.length === 0) {
     tracked = [];
   } else {
@@ -351,7 +371,9 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
       `${scoring}… 0/${String(toScore.length)}`,
       (update) =>
         scoreJobs(
-          toScore.map((item) => item.job),
+          toScore.map(({ first, others }) =>
+            withAllLocations({ first: first.job, others: others.map((item) => item.job) }),
+          ),
           { cv, instructions, preferences: profile.preferences },
           llm,
           {
@@ -364,10 +386,10 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
       () => `Scored ${String(toScore.length)} jobs`,
     );
     summary.usage = usage;
-    tracked = toScore.map((item, index) => {
+    tracked = toScore.map(({ first }, index) => {
       const fit = fits[index] ?? { score: 0, note: '' };
       return {
-        ...item,
+        ...first,
         status: fit.score >= minScore ? 'To apply' : 'Skipped',
         note: fit.note,
         score: fit.score,
@@ -378,7 +400,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   }
   summary.toApply = tracked.filter((item) => item.status === 'To apply').length;
   summary.skipped = tracked.length - summary.toApply;
-  await write({ applications: tracked });
+  await write({ applications: tracked, ignored: copies });
 
   report(ui, summary, tracked, maxAiJobs, options);
   if (summary.pending > 0) {
@@ -459,7 +481,11 @@ function report(
   const fresh = summary.fetched - summary.known;
   ui.success(
     `${String(summary.fetched)} jobs · ${String(summary.known)} already in your sheet · ${String(fresh)} new → ` +
-      `${String(summary.ignored)} ignored by your filters · ${String(summary.toApply)} To apply · ${String(summary.skipped)} Skipped`,
+      `${String(summary.ignored)} ignored by your filters · ` +
+      (summary.sameJob > 0
+        ? `${String(summary.sameJob)} copies of a job in other locations · `
+        : '') +
+      `${String(summary.toApply)} To apply · ${String(summary.skipped)} Skipped`,
   );
   if (summary.usage) {
     const k = (n: number) => `${(n / 1000).toFixed(1)}k`;

@@ -285,6 +285,51 @@ describe('jobhunter hunt', () => {
     ]);
   });
 
+  it('judges a job posted once per location once, and puts the other copies in Ignored', async () => {
+    await setUp();
+    const posted = (id: string, place: string, postedAt = '2026-10-10T10:00:00.000Z') =>
+      job(id, {
+        title: `Lead Frontend Engineer - ${place}`,
+        company: 'Bjak',
+        location: { text: place, regions: [place] },
+        postedAt,
+      });
+    const {
+      deps: d,
+      ui,
+      tracker,
+      llm,
+    } = deps({
+      'board-a': [
+        posted('vn', 'Vietnam'),
+        posted('de', 'Germany'),
+        job('other', { title: 'Senior Frontend Engineer 90', company: 'Bjak' }),
+        // Another job, older: over the limit it waits, copies and all.
+        {
+          ...posted('later-vn', 'Vietnam', '2026-10-01T00:00:00.000Z'),
+          title: 'Staff Frontend Engineer (Vietnam)',
+        },
+        {
+          ...posted('later-de', 'Germany', '2026-10-01T00:00:00.000Z'),
+          title: 'Staff Frontend Engineer (Germany)',
+        },
+      ],
+    });
+
+    const summary = await runHunt(d, { maxAiJobs: 2, minScore: 50 });
+
+    const prompt = (llm.calls[0]?.request as JsonRequest<unknown> | undefined)?.prompt ?? '';
+    expect(prompt).toContain('Title: Lead Frontend Engineer - Vietnam\n');
+    expect(prompt).toContain('Location: Vietnam (remote); Germany (remote)\n');
+    expect(prompt).not.toContain('Lead Frontend Engineer - Germany');
+    expect(tracker.applications.map((a) => a.job.sourceId).sort()).toEqual(['other', 'vn']);
+    expect(tracker.ignored.map((i) => [i.job.sourceId, i.reason])).toEqual([
+      ['de', 'same job as the one in Applications, posted in Germany'],
+    ]);
+    expect(summary).toMatchObject({ sameJob: 1, deferred: 1 });
+    expect(ui.output.join('\n')).toContain('1 copies of a job in other locations · ');
+  });
+
   it('scores only the newest jobs over the limit and leaves the rest for later', async () => {
     await setUp();
     const {
@@ -640,7 +685,8 @@ describe('jobhunter hunt: company job boards', () => {
     // Every job links to the same page; only `gh_jid` tells them apart.
     const greenhouseJob = (id: number) => ({
       id,
-      title: 'Senior Frontend Engineer 85',
+      // Different titles: the same title would be one job posted twice.
+      title: `Senior Frontend Engineer, Team ${String(id)} 85`,
       absolute_url: `https://stripe.com/jobs/search?gh_jid=${String(id)}`,
       location: { name: 'Remote' },
       first_published: '2026-10-10T10:00:00.000Z',
