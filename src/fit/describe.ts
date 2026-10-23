@@ -53,6 +53,10 @@ export function describePreferences(preferences: Preferences | undefined): strin
   return lines.join('\n');
 }
 
+const place = (job: Job) =>
+  job.location.worldwide ? 'anywhere' : (job.location.text ?? 'not stated');
+const placeAndMode = (job: Job) => (job.workMode ? `${place(job)} (${job.workMode})` : place(job));
+
 /**
  * One job as text for the AI, under a short uid. Fields the job doesn't have are left out;
  * descriptions longer than `maxDescriptionChars` are cut and marked.
@@ -77,8 +81,16 @@ export function describePreferences(preferences: Preferences | undefined): strin
  * // (no description)
  *
  * // Cut description: "…first 4000 characters… [cut]"
+ *
+ * // With `copies`, the same job posted elsewhere, a Posted in line replaces Location and Work mode:
+ * // Posted in: Vietnam (remote); Germany (remote); Tokyo, Japan (hybrid)
  */
-export function describeJob(job: Job, uid: string, maxDescriptionChars: number): string {
+export function describeJob(
+  job: Job,
+  uid: string,
+  maxDescriptionChars: number,
+  copies: readonly Job[] = [],
+): string {
   const salary = job.salary
     ? (job.salary.text ??
       [job.salary.min, job.salary.max].filter((n) => n !== undefined).join('–') +
@@ -91,8 +103,9 @@ export function describeJob(job: Job, uid: string, maxDescriptionChars: number):
   const fields = [
     `Title: ${job.title}`,
     `Company: ${job.company}`,
-    `Location: ${job.location.worldwide ? 'anywhere' : (job.location.text ?? 'not stated')}`,
-    job.workMode ? `Work mode: ${job.workMode}` : undefined,
+    ...(copies.length > 0
+      ? [`Posted in: ${[...new Set([job, ...copies].map(placeAndMode))].join('; ')}`]
+      : [`Location: ${place(job)}`, job.workMode ? `Work mode: ${job.workMode}` : undefined]),
     job.employmentType ? `Employment type: ${label(job.employmentType)}` : undefined,
     salary ? `Salary: ${salary.trim()}` : undefined,
     job.tags.length > 0 ? `Tags: ${job.tags.join(', ')}` : undefined,

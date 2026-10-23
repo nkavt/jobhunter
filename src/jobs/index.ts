@@ -7,3 +7,4 @@ export {
   parseLocation,
   parseSalaryText,
 } from './normalize.js';
+export { groupSameJobs, sameJobKey, type SameJob } from './same-job.js';

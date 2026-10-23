@@ -190,7 +190,14 @@ describe('jobhunter hunt', () => {
 
     const summary = await runHunt(d);
 
-    expect(summary).toMatchObject({ fetched: 6, known: 2, ignored: 2, toApply: 1, skipped: 1 });
+    expect(summary).toMatchObject({
+      fetched: 6,
+      known: 1,
+      duplicates: 1,
+      ignored: 2,
+      toApply: 1,
+      skipped: 1,
+    });
     expect(tracker.ignored.map((i) => [i.job.sourceId, i.reason, i.channel])).toEqual([
       ['sales', "title doesn't match your roles", 'Board A'],
       ['old', 'posted 71 days ago', 'Board B'],
@@ -204,7 +211,7 @@ describe('jobhunter hunt', () => {
     expect(llm.calls).toHaveLength(1);
     expect(ui.progress).toEqual(['Scoring 2 jobs with fake-model (Fake AI)… 2/2']);
     expect(ui.output.join('\n')).toContain(
-      '6 jobs · 2 already in your sheet · 4 new → 2 ignored by your filters · 1 To apply · 1 Skipped',
+      '6 jobs · 1 already in your sheet · 1 duplicates · 4 new → 2 ignored by your filters · 1 To apply · 1 Skipped',
     );
     expect(ui.output.join('\n')).toContain('Senior Frontend Engineer 90 · Company great');
     expect(ui.output.at(-1)).toBe(
@@ -285,6 +292,41 @@ describe('jobhunter hunt', () => {
     ]);
   });
 
+  it('judges a job posted once per location once, and puts the other copies in Ignored', async () => {
+    await setUp();
+    const posted = (id: string, title: string, place: string, patch: Partial<Job> = {}) =>
+      job(id, { title, company: 'Bjak', location: { text: place, regions: [place] }, ...patch });
+    const older = { postedAt: '2026-10-01T00:00:00.000Z' };
+    const {
+      deps: d,
+      ui,
+      tracker,
+      llm,
+    } = deps({
+      'board-a': [
+        posted('vn', 'Lead Frontend Engineer - Vietnam', 'Vietnam'),
+        posted('de', 'Lead Frontend Engineer - Germany', 'Germany'),
+        job('other', { title: 'Senior Frontend Engineer 90', company: 'Bjak' }),
+        // Another job, older: over the limit it waits, copies and all.
+        posted('later-vn', 'Staff Frontend Engineer (Vietnam)', 'Vietnam', older),
+        posted('later-de', 'Staff Frontend Engineer (Germany)', 'Germany', older),
+      ],
+    });
+
+    const summary = await runHunt(d, { maxAiJobs: 2, minScore: 50 });
+
+    const prompt = (llm.calls[0]?.request as JsonRequest<unknown> | undefined)?.prompt ?? '';
+    expect(prompt).toContain('Title: Lead Frontend Engineer - Vietnam\n');
+    expect(prompt).toContain('Posted in: Vietnam (remote); Germany (remote)\n');
+    expect(prompt).not.toContain('Lead Frontend Engineer - Germany');
+    expect(tracker.applications.map((a) => a.job.sourceId).sort()).toEqual(['other', 'vn']);
+    expect(tracker.ignored.map((i) => [i.job.sourceId, i.reason])).toEqual([
+      ['de', 'same job as the one in Applications, posted in Germany'],
+    ]);
+    expect(summary).toMatchObject({ sameJob: 1, deferred: 1 });
+    expect(ui.output.join('\n')).toContain('1 copies for other locations · ');
+  });
+
   it('scores only the newest jobs over the limit and leaves the rest for later', async () => {
     await setUp();
     const {
@@ -310,7 +352,25 @@ describe('jobhunter hunt', () => {
     const many = () => ({
       'board-a': Array.from({ length: DEFAULT_MAX_AI_JOBS + 5 }, (_, i) => job(`j${String(i)}`)),
     });
-    const prompt = 'jobs passed your filters, more than the 100 a run scores by default';
+    const prompt = 'How many should the AI score?';
+
+    it('says how many copies for other locations come with the jobs', async () => {
+      await setUp();
+      const copies = ['Germany', 'Spain', 'Italy'].map((place) =>
+        job(place, {
+          title: `Senior Frontend Engineer - ${place}`,
+          company: 'Bjak',
+          location: { text: place, regions: [place] },
+        }),
+      );
+      const { deps: d } = deps({ 'board-a': [...many()['board-a'], ...copies] });
+      const ui = new FakeUi([DEFAULT_MAX_AI_JOBS]);
+      await runHunt({ ...d, ui, interactive: true });
+
+      expect(ui.output).toContain(
+        '2 more are copies of these jobs for other locations; each job is scored once, with all its locations.',
+      );
+    });
 
     it('asks in a terminal, and can score them all', async () => {
       await setUp();
@@ -318,8 +378,11 @@ describe('jobhunter hunt', () => {
       const ui = new FakeUi([DEFAULT_MAX_AI_JOBS + 5]);
       const summary = await runHunt({ ...d, ui, interactive: true });
 
-      const asked = ui.prompts.find((p) => p.message.includes(prompt));
-      expect(asked?.message).toMatch(/^105 jobs passed/);
+      const asked = ui.prompts.find((p) => p.message === prompt);
+      expect(ui.output).toContain(
+        '105 jobs passed your filters, more than the 100 a run scores by default.',
+      );
+      expect(ui.output.join('\n')).not.toContain('copies of these jobs');
       expect(asked?.choices?.map((c) => c.name)).toEqual([
         'The newest 100',
         'All 105',
@@ -640,7 +703,8 @@ describe('jobhunter hunt: company job boards', () => {
     // Every job links to the same page; only `gh_jid` tells them apart.
     const greenhouseJob = (id: number) => ({
       id,
-      title: 'Senior Frontend Engineer 85',
+      // Different titles: the same title would be one job posted twice.
+      title: `Senior Frontend Engineer, Team ${String(id)} 85`,
       absolute_url: `https://stripe.com/jobs/search?gh_jid=${String(id)}`,
       location: { name: 'Remote' },
       first_published: '2026-10-10T10:00:00.000Z',

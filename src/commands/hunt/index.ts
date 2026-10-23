@@ -3,11 +3,18 @@ import { connectAdapter } from '../../llm/index.js';
 import { TrackerError } from '../../tracker/index.js';
 import { CancelledError, createTerminalUi, dim } from '../../ui/index.js';
 import { HuntSetupError } from './errors.js';
-import { DEFAULT_MAX_AI_JOBS, DEFAULT_SINCE_DAYS, runHunt } from './run.js';
+import { runHunt } from './run.js';
+import { DEFAULT_MAX_AI_JOBS, DEFAULT_SINCE_DAYS } from './types.js';
 
 export { HuntSetupError } from './errors.js';
-export { DEFAULT_MAX_AI_JOBS, DEFAULT_SINCE_DAYS, runHunt } from './run.js';
-export type { HuntDeps, HuntOptions, HuntSummary } from './run.js';
+export { runHunt } from './run.js';
+export {
+  DEFAULT_MAX_AI_JOBS,
+  DEFAULT_SINCE_DAYS,
+  type HuntDeps,
+  type HuntOptions,
+  type HuntSummary,
+} from './types.js';
 
 const integer =
   (min: number, max = Number.MAX_SAFE_INTEGER) =>
