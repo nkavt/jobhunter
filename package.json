@@ -58,6 +58,7 @@
     "commander": "^15.0.0",
     "fast-xml-parser": "^5.11.2",
     "mammoth": "^1.13.0",
+    "node-html-parser": "^9.0.4",
     "openai": "^7.32.0",
     "unpdf": "~1.8.1",
     "yocto-spinner": "^1.2.2",

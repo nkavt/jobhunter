@@ -6,6 +6,8 @@ import extractCvFactsSystem from './extract-cv-facts/system.md';
 import extractCvFactsUser from './extract-cv-facts/user.md';
 import jobFitSystem from './job-fit/system.md';
 import jobFitUser from './job-fit/user.md';
+import mapSiteSystem from './map-site/system.md';
+import mapSiteUser from './map-site/user.md';
 import jsonSchemaSnippet from './shared/json-schema.md';
 import retryFeedbackSnippet from './shared/retry-feedback.md';
 import type { PromptTemplate } from './types.js';
@@ -22,6 +24,7 @@ export const PROMPTS = {
   'cv-to-markdown': { system: cvToMarkdownSystem, user: cvToMarkdownUser },
   'extract-cv-facts': { system: extractCvFactsSystem, user: extractCvFactsUser },
   'job-fit': { system: jobFitSystem, user: jobFitUser },
+  'map-site': { system: mapSiteSystem, user: mapSiteUser },
 } as const satisfies Record<string, PromptTemplate>;
 
 /**

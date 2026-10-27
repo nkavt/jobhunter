@@ -44,6 +44,7 @@ import { useMockServer } from '../helpers/anthropic-mock.js';
 import { FakeLLM } from '../helpers/fake-llm.js';
 import { DERIVED_ANSWER } from '../helpers/fixtures.js';
 import { DEFAULT, FakeUi } from '../helpers/fake-ui.js';
+import { ACME_SITE, fakeFetch, LIST_HTML, LIST_URL } from '../helpers/site-fixtures.js';
 import { saveGoogleSession } from '../helpers/google-session.js';
 import { useTempHome } from '../helpers/temp-home.js';
 
@@ -241,6 +242,53 @@ describe('jobhunter hunt', () => {
     const forced = deps({});
     await runHunt(forced.deps, { force: true });
     expect(forced.fetched).toEqual(['board-a', 'board-b']);
+  });
+
+  it('reads mapped sites without fetching job pages already in the sheet', async () => {
+    await setUp();
+    const tracker = new FakeTracker(new Set(['url:https://careers.acme.example/jobs/1']));
+    const fetch = fakeFetch();
+    const first = deps({}, { tracker });
+    const summary = await runHunt(
+      { ...first.deps, sources: [], sites: [ACME_SITE], fetchPage: fetch },
+      { ai: false },
+    );
+
+    expect(fetch.urls).toEqual([
+      LIST_URL,
+      'https://careers.acme.example/jobs/2',
+      'https://careers.acme.example/jobs/3',
+    ]);
+    expect(summary.fetched).toBe(2);
+    const written = [...tracker.applications, ...tracker.ignored];
+    expect(written.map((w) => [w.job.title, w.channel]).sort()).toEqual([
+      ['Backend Engineer', 'Acme'],
+      ['Designer', 'Acme'],
+    ]);
+    expect(first.ui.output.join('\n')).toContain('Acme: 2 jobs, 1 already in your sheet');
+    expect((await loadSourceState())['site:careers.acme.example']).toEqual({
+      lastFetchedAt: now.toISOString(),
+      lastJobCount: 2,
+    });
+
+    // Checked recently: the next run leaves it alone.
+    const again = fakeFetch();
+    const second = deps({});
+    await runHunt({ ...second.deps, sources: [], sites: [ACME_SITE], fetchPage: again });
+    expect(again.urls).toEqual([]);
+    expect(second.ui.output.join('\n')).toContain('Every source was checked recently');
+  });
+
+  it('warns when a mapped site can no longer be read', async () => {
+    await setUp();
+    const { deps: d, ui } = deps({});
+    await runHunt(
+      { ...d, sources: [], sites: [ACME_SITE], fetchPage: fakeFetch({ [LIST_URL]: LIST_HTML }) },
+      { ai: false },
+    );
+    expect(ui.output.join('\n')).toContain(
+      'Acme: no job could be read. If the site has changed, run `jobhunter map https://careers.acme.example/` again.',
+    );
   });
 
   it('warns about a board that fails and carries on with the others', async () => {

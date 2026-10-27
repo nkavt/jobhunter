@@ -49,6 +49,7 @@ Best matches:
   - [`jobhunter init`](#jobhunter-init)
   - [`jobhunter hunt`](#jobhunter-hunt)
   - [`jobhunter companies find`](#jobhunter-companies-find)
+  - [`jobhunter map`](#jobhunter-map)
   - [`jobhunter sheet`](#jobhunter-sheet)
   - [Coming soon](#coming-soon)
 - [Your tracking sheet](#your-tracking-sheet)
@@ -217,7 +218,9 @@ Finds new jobs and adds them to your sheet. Each run goes like this:
 
    **Company job boards.** It also reads the companies' own job boards that [`jobhunter companies find`](#jobhunter-companies-find) found, through each board's public API (every 6 hours at most). A board lists every job the company has, so the title check is stricter here, and jobs that fail it aren't added to Ignored. A title is kept when it matches your roles or main technologies, or is a general software engineer or developer title ("Senior Software Engineer, Payments", "Product Engineer"). A title naming another speciality is dropped ("Android Developer", "Data Engineer", "DevOps Engineer", "QA Engineer", "Java Developer"), unless your CV names it. So is one two or more levels away from yours: for a senior CV, "Intern" and "Junior" titles. Lead, staff and principal titles count as one level, since their meaning differs between companies. `hunt` itself never searches the web: when no boards are known yet (so company boards are skipped), or the weekly searches are due, it says so at the start of the run and suggests `jobhunter companies find`. With `"queries": []` (see [Common tasks](#common-tasks)) it says nothing.
 
-   More boards are coming in future versions. Also on the way: `jobhunter discover` will let the AI search the web for job boards and feeds that suit your profile. You pick the ones you want and Jobhunter learns to read them, so the next `hunt` includes them. Found a feed yourself? `jobhunter map <url>` will add that one.
+   **Sites you mapped.** It reads the sites you added with [`jobhunter map`](#jobhunter-map) (every 12 hours at most), without the AI. On sites that link to a page per job, pages of jobs already in your sheet aren't fetched again, and at most 40 job pages are read per site and run. When a site's jobs can't be read any more, `hunt` says so and suggests mapping it again.
+
+   More boards are coming in future versions. Also on the way: `jobhunter discover` will let the AI search the web for job boards and feeds that suit your profile. You pick the ones you want and Jobhunter learns to read them, so the next `hunt` includes them. Found a careers page or job board yourself? Add it with [`jobhunter map`](#jobhunter-map).
 
 2. **Skip jobs already in your sheet**, in any tab, including jobs you added by hand with a link. A job is recognised by its board and ID, or by its link. The same job posted on two boards has a different link on each, so it can show up twice. A posting a board lists more than once, with the same ID and link (Workable lists it once per location), is counted once; the summary shows the extra listings as "duplicates".
 3. **Filter in code.** A job is ignored if:
@@ -288,6 +291,27 @@ AI search is only offered when your AI provider has one. **OpenAI-compatible API
 
 Prices and free tiers are the services' own and can change; check the linked pages.
 
+### `jobhunter map`
+
+Adds a job site you found yourself: a company's careers page or a job board. The AI explores it once, step by step, and works out how to read it. From then on, every `hunt` reads it on its own, without the AI.
+
+```sh
+jobhunter map https://careers.example.com/
+```
+
+1. **The AI looks around.** Each step, it picks a page or API address to fetch and gets back a summary of it: links, forms and filters, the page's layout, structured job data (JSON-LD), and addresses its scripts load data from. Each step is printed as it goes.
+2. **It finds the job list.** It prefers the site's own filters, so the list it saves is narrowed to your roles and work modes where the site allows. When the jobs come from an API behind the page (common on sites built with React, Vue or Next.js), it reads the API instead of the page: one request per hunt, and it keeps working when the page design changes.
+3. **It tests its mapping** on a few jobs, sees what it read from each, and fixes what's wrong.
+4. **You check the result.** Jobhunter shows the first few jobs it read. Save the mapping, tell the AI what's wrong in your own words (it carries on from there), or cancel.
+
+Mapped sites are kept in `sites.json` in your config folder. Running `map` again with the same address offers to map it again and replaces the old mapping.
+
+The AI may fetch any public web address, but never one on your own machine or network. Pages are fetched without a browser, so a site that only shows its jobs after scripts run can be mapped only when its jobs come from an API the AI can find. Each step is one AI request with a page summary of a few thousand tokens; the run ends with the tokens used.
+
+| Option            | What it does                                                       |
+| ----------------- | ------------------------------------------------------------------ |
+| `--max-steps <n>` | Pages and tests the AI may use before it stops (1–50, default 15). |
+
 ### `jobhunter sheet`
 
 Prints where your tracking sheet is: the path of your file, or the link to your Google Sheet. Add `-o` or `--open` to open it in your spreadsheet app (or, for a Google Sheet, your browser).
@@ -305,7 +329,6 @@ These commands are listed in `jobhunter --help` but aren't ready yet:
 | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `jobhunter discover`         | Let the AI search the web for job boards and feeds that match your profile; pick the ones you want and Jobhunter learns to read them for `hunt`. |
 | `jobhunter sync`             | Apply the "Change status" picks from the status tabs to the Applications tab (Google Sheets only; the local file's status tabs have no picks).   |
-| `jobhunter map <source>`     | Add a job feed you found yourself (JSON or XML): the AI works out how to read it, and it joins your boards.                                      |
 | `jobhunter convert <source>` | Convert a job feed to Jobhunter's format with its saved mapping.                                                                                 |
 
 Also planned: using an existing spreadsheet as your tracking sheet, and Jobhunter's own Google sign-in.

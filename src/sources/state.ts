@@ -28,7 +28,7 @@ export async function saveSourceState(state: SourceState): Promise<void> {
 
 /** When a source may be fetched again, or `undefined` if it's due now. */
 export function nextFetchAt(
-  source: SourceDefinition,
+  source: Pick<SourceDefinition, 'id' | 'minIntervalHours'>,
   state: SourceState,
   now: Date,
 ): Date | undefined {
