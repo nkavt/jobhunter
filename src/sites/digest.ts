@@ -1,7 +1,8 @@
 import { NodeType, parse, type HTMLElement, type Node } from 'node-html-parser';
-import { parseFeed } from '../mapping/index.js';
+import { getPath, parseFeed } from '../mapping/index.js';
 import { findJobPosting } from './extract.js';
 import { pageFormat, type Page } from './page.js';
+import { clip } from './text.js';
 
 /** Rough size limits, in characters, so one page stays a few thousand tokens. */
 const LIMITS = {
@@ -23,38 +24,130 @@ const SKIPPED_TAGS = new Set(['script', 'style', 'noscript', 'svg', 'template', 
 /** Siblings shown before "… N more like this". */
 const REPEATS_SHOWN = 2;
 
-const clip = (text: string, max: number) =>
-  text.length > max ? `${text.slice(0, max - 1)}…` : text;
 const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
 
-/** A page as the AI sees it: what's on it and where to look next, in a few thousand tokens. */
-export function digestPage(page: Page): string {
+/** A feed a page announces in its `<head>`. */
+export interface FeedLink {
+  kind: 'RSS' | 'Atom' | 'JSON';
+  url: string;
+  title?: string;
+}
+
+const FEED_TYPES: Record<string, FeedLink['kind']> = {
+  'application/rss+xml': 'RSS',
+  'application/atom+xml': 'Atom',
+  'application/feed+json': 'JSON',
+};
+
+/** What a fetched page is, for the AI and in one line for the user. */
+export interface PageView {
+  /** The page as the AI sees it: what's on it and where to look next, in a few thousand tokens. */
+  digest: string;
+  /** One line, e.g. `RSS feed, 20 items` or `HTML page, 84 links`. */
+  summary: string;
+  /** Feeds the page announces. */
+  feeds: FeedLink[];
+}
+
+export function inspectPage(page: Page): PageView {
   const header = [
     `URL: ${page.url}`,
     `HTTP ${String(page.status)} · ${page.contentType || 'no content type'} · ${String(page.body.length)} characters`,
   ];
   const format = pageFormat(page);
-  const body =
-    format === 'html'
-      ? digestHtml(page)
-      : digestData(page.body, format === 'json' ? 'json' : 'xml');
-  return [...header, '', body].join('\n');
+  const view = format === 'html' ? inspectHtml(page) : inspectData(page.body, format);
+  return {
+    ...view,
+    digest: [...header, '', view.digest].join('\n'),
+    summary: page.status >= 400 ? `HTTP ${String(page.status)}` : view.summary,
+  };
 }
 
-function digestData(body: string, format: 'json' | 'xml'): string {
+/** The page as the AI sees it. */
+export function digestPage(page: Page): string {
+  return inspectPage(page).digest;
+}
+
+function inspectData(body: string, format: 'json' | 'xml'): PageView {
   let data: unknown;
   try {
     data = parseFeed(body, format);
   } catch (error) {
-    return `${error instanceof Error ? error.message : String(error)}\n\n${clip(body, LIMITS.sample)}`;
+    return {
+      digest: `${error instanceof Error ? error.message : String(error)}\n\n${clip(body, LIMITS.sample)}`,
+      summary: `broken ${format.toUpperCase()}`,
+      feeds: [],
+    };
   }
-  return [
-    `${format.toUpperCase()} outline (dot paths; for lists, the first entry):`,
-    clip(outline(data).join('\n'), LIMITS.outline),
-    '',
-    'Start of the body:',
-    clip(body, LIMITS.sample),
-  ].join('\n');
+  return {
+    digest: [
+      `${format.toUpperCase()} outline (dot paths; for lists, the first entry):`,
+      clip(outline(data).join('\n'), LIMITS.outline),
+      '',
+      'Start of the body:',
+      clip(body, LIMITS.sample),
+    ].join('\n'),
+    summary: summarizeData(data, format),
+    feeds: [],
+  };
+}
+
+const count = (value: unknown) => (Array.isArray(value) ? value.length : value == null ? 0 : 1);
+
+function summarizeData(data: unknown, format: 'json' | 'xml'): string {
+  if (format === 'xml') {
+    const rss = getPath(data, 'rss.channel.item');
+    if (getPath(data, 'rss.channel') !== undefined) return `RSS feed, ${String(count(rss))} items`;
+    if (getPath(data, 'feed') !== undefined) {
+      return `Atom feed, ${String(count(getPath(data, 'feed.entry')))} entries`;
+    }
+    return 'XML';
+  }
+  if (Array.isArray(data)) return `JSON, list of ${String(data.length)}`;
+  const list = largestList(data, '', 2);
+  return list ? `JSON, list of ${String(list.length)} at ${list.path}` : 'JSON';
+}
+
+/** The longest list within `depth` levels, as a guess at where the jobs are. */
+function largestList(
+  value: unknown,
+  path: string,
+  depth: number,
+): { path: string; length: number } | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value) || depth === 0) {
+    return undefined;
+  }
+  let best: { path: string; length: number } | undefined;
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = path ? `${path}.${key}` : key;
+    const found = Array.isArray(child)
+      ? { path: childPath, length: child.length }
+      : largestList(child, childPath, depth - 1);
+    if (found && (!best || found.length > best.length)) best = found;
+  }
+  return best;
+}
+
+/** "an RSS feed", "a JSON feed", "RSS and Atom feeds". */
+export function describeFeeds(feeds: readonly Pick<FeedLink, 'kind'>[]): string {
+  const kinds = [...new Set(feeds.map((feed) => feed.kind))];
+  if (feeds.length === 1 && kinds[0]) return `${kinds[0] === 'JSON' ? 'a' : 'an'} ${kinds[0]} feed`;
+  return `${kinds.join(' and ')} feeds`;
+}
+
+/** The RSS, Atom and JSON feeds a page links to with `<link rel="alternate">`. */
+export function feedsOf(root: HTMLElement, base: string): FeedLink[] {
+  const feeds: FeedLink[] = [];
+  for (const link of root.querySelectorAll('link[rel~="alternate"][href]')) {
+    const kind = FEED_TYPES[(link.getAttribute('type') ?? '').toLowerCase().trim()];
+    const url = absolute(link.getAttribute('href') ?? '', base);
+    if (!kind || !url.startsWith('http') || feeds.some((feed) => feed.url === url)) continue;
+    const title = oneLine(link.getAttribute('title') ?? '');
+    // Blogs (WordPress) announce a feed of their comments too; never jobs.
+    if (/\bcomments\b/i.test(title) || /\/comments\/feed\/?$/i.test(url)) continue;
+    feeds.push({ kind, url, ...(title ? { title } : {}) });
+  }
+  return feeds;
 }
 
 /** Dot paths with their type and a sample value. */
@@ -77,11 +170,18 @@ export function outline(value: unknown, path = '', lines: string[] = []): string
   return lines;
 }
 
-function digestHtml(page: Page): string {
+function inspectHtml(page: Page): PageView {
   const root = parse(page.body);
   const sections: string[] = [];
   const title = oneLine(root.querySelector('title')?.text ?? '');
   if (title) sections.push(`Title: ${title}`);
+
+  const feeds = feedsOf(root, page.url);
+  if (feeds.length > 0) {
+    sections.push(
+      `Feeds announced by the page:\n${feeds.map((feed) => `${feed.kind}${feed.title ? ` "${feed.title}"` : ''} → ${feed.url}`).join('\n')}`,
+    );
+  }
 
   const posting = findJobPosting(root);
   if (posting) {
@@ -102,11 +202,17 @@ function digestHtml(page: Page): string {
   const hints = apiHints(root, page.url);
   if (hints) sections.push(hints);
 
-  sections.push(`Links (text → address):\n${describeLinks(root, page.url)}`);
+  const links = describeLinks(root, page.url);
+  sections.push(`Links (text → address):\n${links.text}`);
   sections.push(
     `Page structure (tag#id.classes "text"; repeated siblings collapsed):\n${clip(skeleton(root.querySelector('body') ?? root).join('\n'), LIMITS.skeleton)}`,
   );
-  return sections.join('\n\n');
+  const summary = [
+    `HTML page, ${String(links.count)} links`,
+    ...(posting ? ['job posting data'] : []),
+    ...(feeds.length > 0 ? [`announces ${describeFeeds(feeds)}`] : []),
+  ].join(', ');
+  return { digest: sections.join('\n\n'), summary, feeds };
 }
 
 function absolute(href: string, base: string): string {
@@ -117,7 +223,7 @@ function absolute(href: string, base: string): string {
   }
 }
 
-function describeLinks(root: HTMLElement, base: string): string {
+function describeLinks(root: HTMLElement, base: string): { text: string; count: number } {
   const seen = new Set<string>();
   const lines: string[] = [];
   for (const link of root.querySelectorAll('a[href]')) {
@@ -130,7 +236,7 @@ function describeLinks(root: HTMLElement, base: string): string {
   if (lines.length > shown.length) {
     shown.push(`… ${String(lines.length - shown.length)} more links`);
   }
-  return shown.join('\n') || '(none)';
+  return { text: shown.join('\n') || '(none)', count: lines.length };
 }
 
 function describeForms(root: HTMLElement, base: string): string {

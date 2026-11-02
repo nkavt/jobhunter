@@ -3,6 +3,7 @@ import type { Job } from '../../jobs/index.js';
 import type { Connection, LLMAdapter, Usage } from '../../llm/index.js';
 import {
   checkPageUrl,
+  describeFeeds,
   fetchPage,
   findSite,
   loadSites,
@@ -73,7 +74,7 @@ function describeJob(job: Job): string {
 async function reviewCandidate(ui: Ui, { site, result }: MapCandidate): Promise<Review> {
   const found =
     site.list.kind === 'links'
-      ? `${String(result.links.length)} job links on ${site.entryUrl}; ${String(result.jobs.length)} of ${String(result.pages.length)} job pages read`
+      ? `${String(result.links.length)} job links ${site.list.feed ? 'in the feed' : 'on'} ${site.entryUrl}; ${String(result.jobs.length)} of ${String(result.pages.length)} job pages read`
       : `${String(result.jobs.length)} jobs in ${site.entryUrl}${result.errors.length > 0 ? ` (${String(result.errors.length)} unreadable)` : ''}`;
   ui.success(`${site.name}: ${found}`);
   for (const job of result.jobs.slice(0, 3)) ui.info(describeJob(job));
@@ -136,6 +137,12 @@ export async function runMap(
       fetch: deps.fetchPage ?? fetchPage,
       onStep: (step, number) => {
         ui.info(`${dim(`${String(number)}.`)} ${step.note}${step.url ? dim(` ${step.url}`) : ''}`);
+      },
+      onResult: ({ summary, feeds }) => {
+        ui.info(dim(`   → ${summary}`));
+        for (const feed of feeds) {
+          ui.info(`   Found ${describeFeeds([feed])}: ${feed.url}`);
+        }
       },
       review: (candidate) => reviewCandidate(ui, candidate),
       ...(deps.now ? { now: deps.now } : {}),

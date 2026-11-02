@@ -8,10 +8,20 @@ export {
   type MapSiteDeps,
   type MapSiteOptions,
   type Review,
+  type StepResult,
 } from './agent.js';
-export { digestPage, outline } from './digest.js';
-export { draftToList, StepSchema, type DraftMapping, type Step } from './draft.js';
 export {
+  describeFeeds,
+  digestPage,
+  feedsOf,
+  inspectPage,
+  outline,
+  type FeedLink,
+  type PageView,
+} from './digest.js';
+export { draftToList, StepSchema, type DraftField, type DraftMapping, type Step } from './draft.js';
+export {
+  feedLinks,
   findJobPosting,
   jobLinks,
   MAX_JOB_PAGES,
@@ -32,9 +42,11 @@ export {
   type Page,
 } from './page.js';
 export {
+  LinkFeedSchema,
   PageRuleSchema,
   SiteMappingSchema,
   SitesFileSchema,
+  type LinkFeed,
   type PageRule,
   type SiteMapping,
 } from './schema.js';

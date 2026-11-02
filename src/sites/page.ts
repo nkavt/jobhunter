@@ -1,5 +1,6 @@
 import { isLocalURL } from '../llm/index.js';
 import { USER_AGENT } from '../sources/fetch.js';
+import { cut } from './text.js';
 
 const TIMEOUT_MS = 30_000;
 /** Larger pages are cut off; job lists and job pages are far smaller. */
@@ -71,7 +72,7 @@ export async function fetchPage(url: string): Promise<Page> {
     url: response.url || url,
     status: response.status,
     contentType: response.headers.get('content-type') ?? '',
-    body: body.length > MAX_BYTES ? body.slice(0, MAX_BYTES) : body,
+    body: cut(body, MAX_BYTES),
   };
 }
 

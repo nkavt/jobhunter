@@ -2,11 +2,12 @@ import { addUsage, type LLMAdapter, type Usage } from '../llm/index.js';
 import { MAPPING_TARGETS, TRANSFORMS } from '../mapping/index.js';
 import { renderSystemPrompt, renderUserPrompt } from '../prompts/index.js';
 import { EmploymentTypeSchema, SalaryPeriodSchema, WorkModeSchema } from '../schema/enums.js';
-import { digestPage } from './digest.js';
+import { inspectPage, type FeedLink, type PageView } from './digest.js';
 import { draftToList, StepSchema, type DraftMapping, type Step } from './draft.js';
 import { readSite, SiteError, type SiteResult } from './extract.js';
 import { cachedFetch, checkPageUrl, PageError, type FetchPage } from './page.js';
 import type { SiteMapping } from './schema.js';
+import { clip, wellFormed } from './text.js';
 
 export const DEFAULT_MAX_STEPS = 15;
 /** Job pages read when a mapping is tested. */
@@ -15,8 +16,6 @@ const TEST_PAGES = 3;
 const FULL_STEPS = 2;
 const MAX_TOKENS = 8192;
 
-const clip = (text: string, max: number) =>
-  text.length > max ? `${text.slice(0, max - 1)}…` : text;
 const list = (values: readonly string[]) => values.map((value) => `\`${value}\``).join(', ');
 
 /** A mapping that made jobs, for the user to look at before it's saved. */
@@ -33,6 +32,8 @@ export interface MapSiteDeps {
   fetch: FetchPage;
   /** Shown before each step runs. */
   onStep?: (step: Step, number: number) => void;
+  /** Shown after each step: what it found, and feeds no earlier page announced. */
+  onResult?: (result: StepResult) => void;
   review: (candidate: MapCandidate) => Promise<Review>;
   now?: () => Date;
 }
@@ -50,12 +51,22 @@ export type MapOutcome =
   | { status: 'gave-up'; reason: string; usage: Usage }
   | { status: 'out-of-steps'; usage: Usage };
 
+/** What a step found, for the user. */
+export interface StepResult {
+  /** One line, e.g. `RSS feed, 20 items` or `20 job links, 3 of 3 job pages read`. */
+  summary: string;
+  /** Feeds announced by the page fetched in this step, the first time each is seen. */
+  feeds: FeedLink[];
+}
+
 interface HistoryEntry {
   step: Step;
   /** What came back, in full. */
   observation: string;
   /** One line for when the step is no longer recent. */
   brief: string;
+  /** One line for the user. */
+  summary: string;
 }
 
 /** A slug for the site, from the job list's host: `careers.acme.com`. */
@@ -73,6 +84,13 @@ export async function mapSite(deps: MapSiteDeps, options: MapSiteOptions): Promi
   const history: HistoryEntry[] = [];
   const usages: Usage[] = [];
   const usage = () => addUsage(...usages);
+  const seenFeeds = new Set<string>();
+  const record = (entry: HistoryEntry, feeds: FeedLink[] = []) => {
+    history.push(entry);
+    const fresh = feeds.filter((feed) => !seenFeeds.has(feed.url));
+    for (const feed of fresh) seenFeeds.add(feed.url);
+    deps.onResult?.({ summary: entry.summary, feeds: fresh });
+  };
 
   const system = renderSystemPrompt('map-site', {
     targets: list(MAPPING_TARGETS),
@@ -86,12 +104,15 @@ export async function mapSite(deps: MapSiteDeps, options: MapSiteOptions): Promi
     const { data: step, usage: stepUsage } = await deps.llm.generateJSON({
       system,
       cacheSystem: true,
-      prompt: renderUserPrompt('map-site', {
-        startUrl: options.startUrl,
-        candidate: options.candidate,
-        stepsLeft: String(maxSteps - number + 1),
-        history: renderHistory(history),
-      }),
+      // Pages can hold broken characters, which would make the request invalid JSON.
+      prompt: wellFormed(
+        renderUserPrompt('map-site', {
+          startUrl: options.startUrl,
+          candidate: options.candidate,
+          stepsLeft: String(maxSteps - number + 1),
+          history: renderHistory(history),
+        }),
+      ),
       schema: StepSchema,
       schemaName: 'map_step',
       maxTokens: MAX_TOKENS,
@@ -101,16 +122,15 @@ export async function mapSite(deps: MapSiteDeps, options: MapSiteOptions): Promi
 
     switch (step.action) {
       case 'give_up':
-        return { status: 'gave-up', reason: step.reason ?? step.note, usage: usage() };
+        return { status: 'gave-up', reason: step.reason || step.note, usage: usage() };
 
       case 'fetch': {
-        const url = step.url ?? '';
-        const observation = await observeFetch(fetch, url);
-        history.push({
-          step,
-          observation,
-          brief: `fetched ${url}: ${observation.split('\n')[1] ?? ''}`,
-        });
+        const { url } = step;
+        const view = await observeFetch(fetch, url);
+        record(
+          { step, observation: view.digest, brief: view.summary, summary: view.summary },
+          view.feeds,
+        );
         break;
       }
 
@@ -119,7 +139,7 @@ export async function mapSite(deps: MapSiteDeps, options: MapSiteOptions): Promi
         const draft = step.mapping as DraftMapping;
         const tried = await tryDraft(fetch, draft, options.startUrl, deps.now?.() ?? new Date());
         if (!tried.candidate) {
-          history.push({ step, observation: tried.observation, brief: tried.brief });
+          record({ step, ...tried });
           break;
         }
         if (step.action === 'test' || !works(tried.candidate.result)) {
@@ -127,14 +147,11 @@ export async function mapSite(deps: MapSiteDeps, options: MapSiteOptions): Promi
             step.action === 'finish'
               ? '\n\nNot finished: the mapping must make more jobs than it fails on.'
               : '';
-          history.push({
-            step,
-            observation: tried.observation + verdict,
-            brief: tried.brief,
-          });
+          record({ step, ...tried, observation: tried.observation + verdict });
           break;
         }
 
+        deps.onResult?.({ summary: tried.summary, feeds: [] });
         const review = await deps.review({
           ...tried.candidate,
           site: { ...tried.candidate.site, mappedBy: deps.llm.model },
@@ -149,6 +166,7 @@ export async function mapSite(deps: MapSiteDeps, options: MapSiteOptions): Promi
         if (review === 'cancel') return { status: 'cancelled', usage: usage() };
         history.push({
           step,
+          summary: tried.summary,
           observation: `${tried.observation}\n\nThe user looked at these jobs and said the mapping isn't right yet:\n"${review.feedback}"`,
           brief: `${tried.brief}; the user asked for changes: "${clip(review.feedback, 200)}"`,
         });
@@ -164,6 +182,10 @@ function works(result: SiteResult): boolean {
   return result.jobs.length > 0 && result.errors.length < result.jobs.length;
 }
 
+/** For `JSON.stringify`: leaves out the `""` and `[]` that mean "not used" in a draft. */
+const withoutUnused = (_key: string, value: unknown): unknown =>
+  value === '' || (Array.isArray(value) && value.length === 0) ? undefined : value;
+
 function renderHistory(history: readonly HistoryEntry[]): string {
   if (history.length === 0) return 'Nothing yet: start with the start address.';
   return history
@@ -172,9 +194,9 @@ function renderHistory(history: readonly HistoryEntry[]): string {
       const { step } = entry;
       const target =
         step.action === 'fetch'
-          ? ` ${step.url ?? ''}`
+          ? ` ${step.url}`
           : recent && step.mapping
-            ? `\n${JSON.stringify(step.mapping)}`
+            ? `\n${JSON.stringify(step.mapping, withoutUnused)}`
             : '';
       const heading = `## Step ${String(index + 1)}: ${step.action}${target}`;
       return recent
@@ -184,14 +206,19 @@ function renderHistory(history: readonly HistoryEntry[]): string {
     .join('\n\n');
 }
 
-async function observeFetch(fetch: FetchPage, url: string): Promise<string> {
+async function observeFetch(fetch: FetchPage, url: string): Promise<PageView> {
+  const failed = (message: string): PageView => ({
+    digest: `Couldn't fetch ${url}\n${message}`,
+    summary: `couldn't fetch it: ${message}`,
+    feeds: [],
+  });
   const problem = checkPageUrl(url);
-  if (problem) return `Couldn't fetch ${url}\n${problem}`;
+  if (problem) return failed(problem);
   try {
-    return digestPage(await fetch(url));
+    return inspectPage(await fetch(url));
   } catch (error) {
     if (!(error instanceof PageError)) throw error;
-    return `Couldn't fetch ${url}\n${error.message}`;
+    return failed(error.message);
   }
 }
 
@@ -199,6 +226,7 @@ interface Tried {
   candidate?: MapCandidate;
   observation: string;
   brief: string;
+  summary: string;
 }
 
 async function tryDraft(
@@ -214,6 +242,7 @@ async function tryDraft(
     return {
       observation: `The mapping is invalid:\n${problems.map((p) => `- ${p}`).join('\n')}`,
       brief: `invalid mapping (${clip(problems.join('; '), 200)})`,
+      summary: `the mapping has ${String(problems.length)} problem${problems.length === 1 ? '' : 's'} to fix`,
     };
   }
 
@@ -233,12 +262,17 @@ async function tryDraft(
     return {
       observation: `The test failed: ${error.message}`,
       brief: `test failed: ${error.message}`,
+      summary: `the test failed: ${error.message}`,
     };
   }
   return {
     candidate: { site, result },
     observation: describeResult(site, result),
     brief: `${String(result.jobs.length)} jobs, ${String(result.errors.length)} failed${site.list.kind === 'links' ? `, ${String(result.links.length)} links` : ''}`,
+    summary:
+      site.list.kind === 'links'
+        ? `${String(result.links.length)} job links, ${String(result.jobs.length)} of ${String(result.pages.length)} job pages read`
+        : `${String(result.jobs.length)} jobs read${result.errors.length > 0 ? `, ${String(result.errors.length)} unreadable` : ''}`,
   };
 }
 

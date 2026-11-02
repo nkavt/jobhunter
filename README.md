@@ -299,8 +299,8 @@ Adds a job site you found yourself: a company's careers page or a job board. The
 jobhunter map https://careers.example.com/
 ```
 
-1. **The AI looks around.** Each step, it picks a page or API address to fetch and gets back a summary of it: links, forms and filters, the page's layout, structured job data (JSON-LD), and addresses its scripts load data from. Each step is printed as it goes.
-2. **It finds the job list.** It prefers the site's own filters, so the list it saves is narrowed to your roles and work modes where the site allows. When the jobs come from an API behind the page (common on sites built with React, Vue or Next.js), it reads the API instead of the page: one request per hunt, and it keeps working when the page design changes.
+1. **The AI looks around.** Each step, it picks a page or API address to fetch and gets back a summary of it: links, forms and filters, the feeds the page announces (RSS, Atom, JSON Feed), the page's layout, structured job data (JSON-LD), and addresses its scripts load data from. Each step is printed as it goes, with what it found (`→ RSS feed, 15 items`, `→ HTTP 404`), and so is every feed a page announces.
+2. **It finds the job list.** It prefers the site's own filters, so the list it saves is narrowed to your roles and work modes where the site allows. It looks for a feed first, and may try a common feed address or two when the site doesn't announce one. When a feed's items have everything a job needs, it reads the feed; when they're thin (often just a title and a link), it takes the job links from the feed and reads each job from its page. Without a feed, it looks for the API behind the page (common on sites built with React, Vue or Next.js), and only then reads the page itself. Feeds and APIs keep working when the page design changes.
 3. **It tests its mapping** on a few jobs, sees what it read from each, and fixes what's wrong.
 4. **You check the result.** Jobhunter shows the first few jobs it read. Save the mapping, tell the AI what's wrong in your own words (it carries on from there), or cancel.
 

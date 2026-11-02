@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'node-html-parser';
 import {
+  feedLinks,
   findJobPosting,
   jobLinks,
   readJobPage,
@@ -8,7 +9,15 @@ import {
   SiteError,
   type SiteMapping,
 } from '../../src/sites/index.js';
-import { ACME_SITE, fakeFetch, jobHtml, LIST_HTML, LIST_URL } from '../helpers/site-fixtures.js';
+import {
+  ACME_SITE,
+  fakeFetch,
+  FEED_URL,
+  FEED_XML,
+  jobHtml,
+  LIST_HTML,
+  LIST_URL,
+} from '../helpers/site-fixtures.js';
 
 describe('jobLinks', () => {
   it('returns absolute links without fragments, each once, in page order', () => {
@@ -130,5 +139,60 @@ describe('readSite', () => {
     const result = await readSite(site, fakeFetch({ [site.entryUrl]: body }));
     expect(result.jobs).toMatchObject([{ sourceId: '7', title: 'SRE', company: 'Acme' }]);
     expect(result.errors).toHaveLength(1);
+  });
+});
+
+describe('feedLinks', () => {
+  it('reads RSS item links, absolute', () => {
+    expect(
+      feedLinks(FEED_XML, FEED_URL, { format: 'xml', items: 'rss.channel.item', link: 'link' }),
+    ).toEqual(['https://careers.acme.example/jobs/1', 'https://careers.acme.example/jobs/2']);
+  });
+
+  it('reads Atom links from their href, and JSON items', () => {
+    const atom = `<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom">
+      <entry><link href="https://x.example/a"/></entry><entry><link href="https://x.example/b"/></entry>
+    </feed>`;
+    expect(
+      feedLinks(atom, 'https://x.example/', { format: 'xml', items: 'feed.entry', link: 'link' }),
+    ).toEqual(['https://x.example/a', 'https://x.example/b']);
+    const json = JSON.stringify({ items: [{ url: '/c' }, { url: null }] });
+    expect(
+      feedLinks(json, 'https://x.example/', { format: 'json', items: 'items', link: 'url' }),
+    ).toEqual(['https://x.example/c']);
+  });
+});
+
+describe('readSite with links from a feed', () => {
+  const fields = ACME_SITE.list.kind === 'links' ? ACME_SITE.list.fields : {};
+  const site: SiteMapping = {
+    ...ACME_SITE,
+    entryUrl: FEED_URL,
+    list: {
+      kind: 'links',
+      feed: { format: 'xml', items: 'rss.channel.item', link: 'link' },
+      fields,
+    },
+  };
+
+  it('reads each job from the page the feed links to', async () => {
+    const result = await readSite(site, fakeFetch());
+    expect(result.links).toHaveLength(2);
+    expect(result.jobs.map((job) => [job.title, job.company])).toEqual([
+      ['Frontend Engineer', 'Acme'],
+      ['Backend Engineer', 'Acme'],
+    ]);
+  });
+
+  it('fails when the feed is broken', async () => {
+    await expect(
+      readSite(
+        {
+          ...site,
+          list: { kind: 'links', feed: { format: 'json', items: '', link: 'url' }, fields },
+        },
+        fakeFetch(),
+      ),
+    ).rejects.toThrow("isn't valid JSON");
   });
 });

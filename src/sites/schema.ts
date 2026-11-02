@@ -20,14 +20,30 @@ export const PageRuleSchema = z.strictObject({
 });
 export type PageRule = z.infer<typeof PageRuleSchema>;
 
-/** The listing links to one page per job; each job is read from its page. */
-const LinksListSchema = z.strictObject({
-  kind: z.literal('links'),
-  /** CSS selector for the `<a>` elements that open a job. */
-  selector: z.string().min(1),
-  /** Job fields on each job page. `url` and `sourceId` default to the page's address. */
-  fields: z.partialRecord(z.enum(MAPPING_TARGETS), PageRuleSchema),
+/** Job links from a feed whose items are too thin to be jobs on their own (often RSS). */
+export const LinkFeedSchema = z.strictObject({
+  format: z.enum(['json', 'xml']),
+  /** Dot path to the list of items; `''` means the feed itself is the list. */
+  items: z.string(),
+  /** Dot path to the job page's address inside one item, e.g. `link`. */
+  link: z.string().min(1),
 });
+export type LinkFeed = z.infer<typeof LinkFeedSchema>;
+
+/** The listing links to one page per job; each job is read from its page. */
+const LinksListSchema = z
+  .strictObject({
+    kind: z.literal('links'),
+    /** CSS selector for the `<a>` elements that open a job, on an HTML list. */
+    selector: z.string().min(1).optional(),
+    /** Or: the list is a feed, and each item links to a job page. */
+    feed: LinkFeedSchema.optional(),
+    /** Job fields on each job page. `url` and `sourceId` default to the page's address. */
+    fields: z.partialRecord(z.enum(MAPPING_TARGETS), PageRuleSchema),
+  })
+  .refine((list) => (list.selector === undefined) !== (list.feed === undefined), {
+    message: 'give either a selector or a feed for the job links',
+  });
 
 /** The listing is a JSON or XML feed with whole jobs, often the API behind a site's own page. */
 const FeedListSchema = z.strictObject({

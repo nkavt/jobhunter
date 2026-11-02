@@ -1,9 +1,21 @@
-import type { FetchPage, Page, SiteMapping } from '../../src/sites/index.js';
+import type {
+  DraftField,
+  DraftMapping,
+  FetchPage,
+  Page,
+  SiteMapping,
+  Step,
+} from '../../src/sites/index.js';
 
 export const LIST_URL = 'https://careers.acme.example/jobs?team=engineering';
 
 export const LIST_HTML = `<!doctype html>
-<html><head><title>Careers at Acme</title></head>
+<html><head><title>Careers at Acme</title>
+<link rel="alternate" type="application/rss+xml" title="Acme jobs" href="/jobs/feed/">
+<link rel="alternate" type="application/rss+xml" title="Acme jobs" href="/jobs/feed/">
+<link rel="alternate" type="application/rss+xml" title="Acme » Comments Feed" href="/comments/feed/">
+<link rel="stylesheet" href="/style.css">
+</head>
 <body>
   <nav><a href="/">Home</a><a href="/about">About</a></nav>
   <form action="/jobs" method="get">
@@ -41,24 +53,40 @@ export function jobHtml(id: number, title: string, { jsonLd = true } = {}): stri
   </body></html>`;
 }
 
+export const FEED_URL = 'https://careers.acme.example/jobs/feed/';
+
+/** A thin RSS feed: titles and links only, so the jobs come from their pages. */
+export const FEED_XML = `<?xml version="1.0"?>
+<rss version="2.0"><channel><title>Acme jobs</title>
+  <item><title>Frontend Engineer</title><link>https://careers.acme.example/jobs/1</link></item>
+  <item><title>Backend Engineer</title><link>/jobs/2</link></item>
+</channel></rss>`;
+
 export const PAGES: Record<string, string> = {
+  [FEED_URL]: FEED_XML,
   [LIST_URL]: LIST_HTML,
   'https://careers.acme.example/jobs/1': jobHtml(1, 'Frontend Engineer'),
   'https://careers.acme.example/jobs/2': jobHtml(2, 'Backend Engineer'),
   'https://careers.acme.example/jobs/3': jobHtml(3, 'Designer'),
 };
 
-/** Serves `pages` as HTML (or JSON when the body looks like it); anything else is a 404. */
+/** Serves `pages` as HTML, JSON or RSS by how the body starts; anything else is a 404. */
 export function fakeFetch(pages: Record<string, string> = PAGES): FetchPage & { urls: string[] } {
   const urls: string[] = [];
   const fetch = (url: string): Promise<Page> => {
     urls.push(url);
     const body = pages[url];
-    const json = body?.trimStart().startsWith('{') || body?.trimStart().startsWith('[');
+    const start = body?.trimStart() ?? '';
+    const contentType =
+      start.startsWith('{') || start.startsWith('[')
+        ? 'application/json'
+        : start.startsWith('<?xml')
+          ? 'application/rss+xml'
+          : 'text/html; charset=utf-8';
     return Promise.resolve({
       url,
       status: body === undefined ? 404 : 200,
-      contentType: json ? 'application/json' : 'text/html; charset=utf-8',
+      contentType,
       body: body ?? 'Not found',
     });
   };
@@ -84,3 +112,35 @@ export const ACME_SITE: SiteMapping = {
   },
   mappedAt: '2026-10-21T12:00:00.000Z',
 };
+
+export type FieldInput = Partial<DraftField> & Pick<DraftField, 'target'>;
+export type DraftInput = Partial<Omit<DraftMapping, 'fields'>> & { fields?: FieldInput[] };
+export type StepInput = Partial<Omit<Step, 'mapping'>> &
+  Pick<Step, 'note' | 'action'> & { mapping?: DraftMapping };
+
+/** A draft field as the AI writes it: every property, `""` / `[]` when unused. */
+export const field = (input: FieldInput): DraftField => ({
+  selector: '',
+  attr: '',
+  jsonLd: '',
+  path: '',
+  const: '',
+  transforms: [],
+  map: [],
+  default: '',
+  ...input,
+});
+
+export const draft = ({ fields = [], ...input }: DraftInput): DraftMapping => ({
+  name: 'Acme',
+  entryUrl: LIST_URL,
+  kind: 'links',
+  linkSelector: '',
+  linkPath: '',
+  format: 'json',
+  items: '',
+  ...input,
+  fields: fields.map(field),
+});
+
+export const step = (input: StepInput): Step => ({ url: '', reason: '', ...input });

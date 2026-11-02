@@ -2,13 +2,14 @@ import { parse, type HTMLElement } from 'node-html-parser';
 import type { Job } from '../jobs/index.js';
 import {
   applyMapping,
+  getPath,
   parseFeed,
   type FeedMapping,
   type FieldRule,
   type ItemError,
 } from '../mapping/index.js';
 import { pageFormat, PageError, type FetchPage, type Page } from './page.js';
-import type { PageRule, SiteList, SiteMapping } from './schema.js';
+import type { LinkFeed, PageRule, SiteList, SiteMapping } from './schema.js';
 
 /** Job pages read per hunt and site at most; a filtered list rarely has more new jobs. */
 export const MAX_JOB_PAGES = 40;
@@ -51,14 +52,13 @@ function okPage(page: Page, site: string): Page {
   return page;
 }
 
-/** The `<a>` elements' targets, absolute, without fragments, each once and in page order. */
-export function jobLinks(html: string, baseUrl: string, selector: string): string[] {
+/** Absolute web addresses without fragments, each once and in order. */
+function uniqueLinks(hrefs: Iterable<unknown>, baseUrl: string): string[] {
   const links = new Set<string>();
-  for (const element of parse(html).querySelectorAll(selector)) {
-    const href = element.getAttribute('href') ?? element.querySelector('a')?.getAttribute('href');
-    if (!href) continue;
+  for (const href of hrefs) {
+    if (typeof href !== 'string' || !href.trim()) continue;
     try {
-      const url = new URL(href, baseUrl);
+      const url = new URL(href.trim(), baseUrl);
       if (url.protocol !== 'http:' && url.protocol !== 'https:') continue;
       url.hash = '';
       links.add(url.toString());
@@ -67,6 +67,34 @@ export function jobLinks(html: string, baseUrl: string, selector: string): strin
     }
   }
   return [...links];
+}
+
+/** The `<a>` elements' targets, absolute, without fragments, each once and in page order. */
+export function jobLinks(html: string, baseUrl: string, selector: string): string[] {
+  return uniqueLinks(
+    parse(html)
+      .querySelectorAll(selector)
+      .map(
+        (element) =>
+          element.getAttribute('href') ?? element.querySelector('a')?.getAttribute('href'),
+      ),
+    baseUrl,
+  );
+}
+
+/** The job page addresses in a feed's items. Throws `FeedParseError` for a broken feed. */
+export function feedLinks(body: string, baseUrl: string, feed: LinkFeed): string[] {
+  const list = getPath(parseFeed(body, feed.format), feed.items);
+  const items: unknown[] = Array.isArray(list) ? list : list == null ? [] : [list];
+  // Atom links are elements with the address in an attribute: `<link href="…"/>`.
+  const href = (value: unknown): unknown =>
+    value !== null && typeof value === 'object' && '@_href' in value
+      ? (value as Record<string, unknown>)['@_href']
+      : value;
+  return uniqueLinks(
+    items.map((item) => href(getPath(item, feed.link))),
+    baseUrl,
+  );
 }
 
 const JOB_POSTING = 'JobPosting';
@@ -220,6 +248,28 @@ function readFeedList(
   }
 }
 
+function listLinks(
+  site: Pick<SiteMapping, 'id' | 'name'>,
+  list: Extract<SiteList, { kind: 'links' }>,
+  page: Page,
+): string[] {
+  if (list.feed) {
+    try {
+      return feedLinks(page.body, page.url, list.feed);
+    } catch (error) {
+      throw new SiteError(
+        `${site.name}: ${error instanceof Error ? error.message : String(error)}`,
+        site.id,
+        { cause: error },
+      );
+    }
+  }
+  if (pageFormat(page) !== 'html') {
+    throw new SiteError(`${site.name}: the job list isn't an HTML page.`, site.id);
+  }
+  return jobLinks(page.body, page.url, list.selector ?? '');
+}
+
 async function readLinksList(
   site: Pick<SiteMapping, 'id' | 'name'>,
   list: Extract<SiteList, { kind: 'links' }>,
@@ -227,10 +277,7 @@ async function readLinksList(
   fetch: FetchPage,
   options: ReadSiteOptions,
 ): Promise<SiteResult> {
-  if (pageFormat(page) !== 'html') {
-    throw new SiteError(`${site.name}: the job list isn't an HTML page.`, site.id);
-  }
-  const links = jobLinks(page.body, page.url, list.selector);
+  const links = listLinks(site, list, page);
   const wanted = links
     .filter((link) => !options.skip?.(link))
     .slice(0, options.maxPages ?? MAX_JOB_PAGES);

@@ -2,20 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { describeCandidate, MapInputError, runMap } from '../../src/commands/map/index.js';
 import { saveConfig, saveProfile, type Profile } from '../../src/config/index.js';
 import type { JsonRequest } from '../../src/llm/index.js';
-import { loadSites, saveSite, type Step } from '../../src/sites/index.js';
+import { loadSites, saveSite } from '../../src/sites/index.js';
 import { FakeLLM } from '../helpers/fake-llm.js';
 import { DERIVED_ANSWER } from '../helpers/fixtures.js';
 import { FakeUi } from '../helpers/fake-ui.js';
-import { ACME_SITE, fakeFetch, LIST_URL } from '../helpers/site-fixtures.js';
+import {
+  ACME_SITE,
+  draft,
+  fakeFetch,
+  LIST_URL,
+  step,
+  type StepInput,
+} from '../helpers/site-fixtures.js';
 import { useTempHome } from '../helpers/temp-home.js';
 
 const now = new Date('2026-10-21T12:00:00Z');
 const START = 'https://careers.acme.example/';
 
-const FINISH: Step = {
+const FINISH: StepInput = {
   note: 'The job links work',
   action: 'finish',
-  mapping: {
+  mapping: draft({
     name: 'Acme',
     entryUrl: LIST_URL,
     kind: 'links',
@@ -24,7 +31,7 @@ const FINISH: Step = {
       { target: 'title', jsonLd: 'title' },
       { target: 'company', const: 'Acme' },
     ],
-  },
+  }),
 };
 
 async function setUp() {
@@ -42,13 +49,14 @@ async function setUp() {
   });
 }
 
-function deps(ui: FakeUi, steps: Step[]) {
+function deps(ui: FakeUi, steps: StepInput[]) {
   let next = 0;
   const prompts: string[] = [];
   const llm = new FakeLLM({
     json: (_attempt: number, request: JsonRequest<unknown>) => {
       prompts.push(request.prompt);
-      return steps[next++];
+      const answer = steps[next++];
+      return answer && step(answer);
     },
   });
   return { deps: { ui, connect: () => llm, fetchPage: fakeFetch(), now: () => now }, prompts };
@@ -71,8 +79,23 @@ describe('jobhunter map', () => {
     ]);
     const output = ui.output.join('\n');
     expect(output).toContain('Acme: 3 job links');
+    expect(output).toContain('→ 3 job links, 3 of 3 job pages read');
     expect(output).toContain('Frontend Engineer · Acme');
     expect(output).toContain('`jobhunter hunt` reads it from now on');
+  });
+
+  it('shows what each fetch found, and the feeds a page announces', async () => {
+    await setUp();
+    const ui = new FakeUi(['save']);
+    const { deps: d } = deps(ui, [
+      { note: 'Looking at the list', action: 'fetch', url: LIST_URL },
+      FINISH,
+    ]);
+    await runMap(d, START);
+    const output = ui.output.join('\n');
+    expect(output).toContain('1. Looking at the list');
+    expect(output).toContain('→ HTML page, 5 links, announces an RSS feed');
+    expect(output).toContain('Found an RSS feed: https://careers.acme.example/jobs/feed/');
   });
 
   it('asks before mapping a site again, and replaces it', async () => {
