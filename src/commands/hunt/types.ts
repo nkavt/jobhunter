@@ -2,6 +2,7 @@ import type { GoogleClient } from '../../google/index.js';
 import type { Job } from '../../jobs/index.js';
 import type { Connection, LLMAdapter, Usage } from '../../llm/index.js';
 import type { FeedMapping } from '../../mapping/index.js';
+import type { FetchPage, SiteMapping } from '../../sites/index.js';
 import type { Ats, SourceDefinition, SourceResult } from '../../sources/index.js';
 import type { OpenLock, Tracker } from '../../tracker/index.js';
 import type { Ui } from '../../ui/index.js';
@@ -35,6 +36,10 @@ export interface HuntDeps {
     source: SourceDefinition,
     mappings: Record<string, FeedMapping>,
   ) => Promise<SourceResult>;
+  /** Sites mapped by `jobhunter map`; replaces `sites.json`. */
+  sites?: SiteMapping[];
+  /** Fetches the mapped sites' pages; replaces the real HTTP fetch. */
+  fetchPage?: FetchPage;
   /** Systems whose company boards are read; `[]` turns that off. */
   ats?: Ats[];
   trackerFor?: (target: TrackerTarget) => Tracker;

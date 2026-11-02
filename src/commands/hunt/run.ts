@@ -17,6 +17,7 @@ import {
   saveBoardState,
   saveSourceState,
 } from '../../sources/index.js';
+import { loadSites } from '../../sites/index.js';
 import type { IgnoredJob } from '../../tracker/index.js';
 import { readCompanyBoards, showCompaniesHint } from './boards.js';
 import { HuntSetupError } from './errors.js';
@@ -25,6 +26,7 @@ import { LockGuard } from './lock-guard.js';
 import { report } from './report.js';
 import { scorePassed } from './score.js';
 import { openSheet, SheetWriter, splitFound } from './sheet.js';
+import { dueSites, readSites } from './sites.js';
 import {
   DEFAULT_SINCE_DAYS,
   type Found,
@@ -86,6 +88,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
   // Which sources are due
   const feedState = await loadSourceState();
   const due = dueFeeds(ui, deps.sources ?? BUILTIN_SOURCES, feedState, now, options.force);
+  const sites = dueSites(deps.sites ?? (await loadSites()), feedState, now, options.force);
   const summary: HuntSummary = {
     fetched: 0,
     known: 0,
@@ -98,7 +101,7 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
     pending: 0,
   };
   const boardsWaiting = ats.length > 0 && dueBoards(boardState, now, options.force).length > 0;
-  if (due.length === 0 && !boardsWaiting) {
+  if (due.length === 0 && sites.length === 0 && !boardsWaiting) {
     ui.info('Every source was checked recently. Run `jobhunter hunt --force` to check now.');
     return summary;
   }
@@ -109,12 +112,10 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
 
   // Fetch
   const found: Found[] = await fetchFeeds(due, feedState, deps, now);
-  await saveSourceState(feedState);
   found.push(
     ...(await readCompanyBoards(boardState, ats, profile, deps, { now, force: options.force })),
   );
   await saveBoardState(boardState);
-  summary.fetched = found.length;
 
   // Skip jobs already in the sheet, and duplicates within this run
   const tracker = openSheet(profile, client, deps);
@@ -128,6 +129,12 @@ export async function runHunt(deps: HuntDeps, options: HuntOptions = {}): Promis
         () => 'Checked your sheet',
       )
     : new Set<string>();
+
+  // Sites mapped by `jobhunter map`: read after the sheet, so known job pages aren't fetched again
+  found.push(...(await readSites(sites, feedState, deps, { now, known })));
+  await saveSourceState(feedState);
+  summary.fetched = found.length;
+
   const { fresh, inSheet, duplicates } = splitFound(found, known);
   summary.known = inSheet;
   summary.duplicates = duplicates;
