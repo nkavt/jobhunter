@@ -26,6 +26,8 @@ export const googleCredentialsFile = (): string => join(configDir(), 'google-cre
 export const googleTokenFile = (): string => join(configDir(), 'google-token.json');
 export const mappingsFile = (): string => join(configDir(), 'mappings.json');
 export const sourcesFile = (): string => join(configDir(), 'sources.json');
+/** Job sites mapped by `jobhunter map`. */
+export const sitesFile = (): string => join(configDir(), 'sites.json');
 
 export const profilesDir = (): string => join(configDir(), 'profiles');
 export const profileDir = (name: string): string => join(profilesDir(), name);
